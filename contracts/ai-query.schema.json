@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AiQuery",
+  "description": "Schema for natural language indoor query processed by MapLess AI SLM pipeline",
+  "type": "object",
+  "required": ["text", "buildingId"],
+  "properties": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "User's natural language input (e.g., 'Find the nearest accessible laboratory')"
+    },
+    "buildingId": {
+      "type": "string",
+      "description": "Building scope for contextual search"
+    },
+    "userContext": {
+      "type": "object",
+      "description": "Optional contextual visitor state",
+      "properties": {
+        "currentNodeId": {
+          "type": "string",
+          "description": "Current manually selected node ID of the visitor"
+        },
+        "accessible": {
+          "type": "boolean",
+          "description": "Whether user requires accessible routing"
+        },
+        "currentFloorId": {
+          "type": "string",
+          "description": "Current floor ID of the visitor"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

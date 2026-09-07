@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Node",
+  "description": "Schema for an indoor topological node in MapLess AI",
+  "type": "object",
+  "required": ["id", "name", "category", "floorId", "x", "y", "accessible"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the node (e.g., 'lab-101')"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable label for the node"
+    },
+    "category": {
+      "type": "string",
+      "description": "Semantic classification of the space (e.g., 'laboratory', 'entrance', 'staircase', 'restroom')"
+    },
+    "floorId": {
+      "type": "string",
+      "description": "Identifier of the floor this node belongs to"
+    },
+    "x": {
+      "type": "number",
+      "description": "Local horizontal Cartesian coordinate in meters"
+    },
+    "y": {
+      "type": "number",
+      "description": "Local vertical Cartesian coordinate in meters"
+    },
+    "accessible": {
+      "type": "boolean",
+      "description": "Indicates wheelchair and barrier-free accessibility"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional open metadata dictionary",
+      "default": {}
+    }
+  },
+  "additionalProperties": true
+}

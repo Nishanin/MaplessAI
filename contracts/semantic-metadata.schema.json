@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SemanticMetadata",
+  "description": "Schema for contextual indoor metadata associated with nodes or edges in MapLess AI",
+  "type": "object",
+  "required": ["entityId", "entityType"],
+  "properties": {
+    "entityId": {
+      "type": "string",
+      "description": "Identifier of the associated node, edge, floor, or building"
+    },
+    "entityType": {
+      "type": "string",
+      "enum": ["node", "edge", "floor", "building"],
+      "description": "Classification of the target entity"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Search tags and keywords (e.g., ['computers', 'canteen', 'printer', 'restroom'])"
+    },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Common synonyms or vernacular names (e.g., ['Software Lab', 'Computer Lab 1'])"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed human description or instructions"
+    },
+    "department": {
+      "type": "string",
+      "description": "Responsible department or organization unit"
+    },
+    "operationalHours": {
+      "type": "string",
+      "description": "Operating schedule string or representation"
+    },
+    "capacity": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Maximum room or zone occupant capacity"
+    },
+    "customAttributes": {
+      "type": "object",
+      "description": "Flexible key-value pairs for extended domain attributes",
+      "default": {}
+    }
+  },
+  "additionalProperties": true
+}

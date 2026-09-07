@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NavigationRequest",
+  "description": "Schema for an indoor route calculation request in MapLess AI",
+  "type": "object",
+  "required": ["buildingId", "startNodeId", "destinationNodeId"],
+  "properties": {
+    "buildingId": {
+      "type": "string",
+      "description": "Unique identifier of the building where navigation occurs"
+    },
+    "startNodeId": {
+      "type": "string",
+      "description": "Origin node ID (manually selected by visitor in V1)"
+    },
+    "destinationNodeId": {
+      "type": "string",
+      "description": "Target destination node ID"
+    },
+    "preferences": {
+      "type": "object",
+      "description": "User routing constraints and preferences",
+      "properties": {
+        "accessible": {
+          "type": "boolean",
+          "default": false,
+          "description": "Requires wheelchair-accessible paths only (avoid stairs/steep slopes)"
+        },
+        "avoidStairs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prefers elevators or ramps over staircases"
+        },
+        "avoidBlockedEdges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Excludes edges marked as obstructed"
+        },
+        "emergencyMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Routes toward nearest verified emergency exits"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

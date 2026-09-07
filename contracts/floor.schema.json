@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Floor",
+  "description": "Schema for a building floor entity in MapLess AI",
+  "type": "object",
+  "required": ["id", "buildingId", "floorNumber", "name"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the floor (e.g., 'floor-1')"
+    },
+    "buildingId": {
+      "type": "string",
+      "description": "Identifier of the parent building"
+    },
+    "floorNumber": {
+      "type": "integer",
+      "description": "Vertical floor index (e.g., 0 for Ground, 1 for First Floor, -1 for Basement)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-friendly floor label (e.g., 'First Floor')"
+    },
+    "elevation": {
+      "type": "number",
+      "default": 0.0,
+      "description": "Relative elevation in meters relative to ground level"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional open metadata dictionary",
+      "default": {}
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Edge",
+  "description": "Schema for an indoor topological edge connecting two nodes in MapLess AI",
+  "type": "object",
+  "required": [
+    "id",
+    "startNodeId",
+    "endNodeId",
+    "distance",
+    "bearing",
+    "accessible",
+    "blocked"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the edge (e.g., 'edge-1')"
+    },
+    "startNodeId": {
+      "type": "string",
+      "description": "ID of the starting node"
+    },
+    "endNodeId": {
+      "type": "string",
+      "description": "ID of the destination node"
+    },
+    "distance": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Physical distance in meters"
+    },
+    "bearing": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 360,
+      "description": "Compass direction from start to end in degrees (0 = North, 90 = East, etc.)"
+    },
+    "accessible": {
+      "type": "boolean",
+      "description": "Wheelchair / step-free accessibility flag"
+    },
+    "blocked": {
+      "type": "boolean",
+      "description": "Dynamic or temporary path obstruction flag"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional open metadata dictionary",
+      "default": {}
+    }
+  },
+  "additionalProperties": true
+}

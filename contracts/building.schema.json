@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Building",
+  "description": "Schema for a building entity in MapLess AI",
+  "type": "object",
+  "required": ["id", "name", "address", "category", "latitude", "longitude"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the building (e.g., 'vit-ce')"
+    },
+    "name": {
+      "type": "string",
+      "description": "Full formal name of the building"
+    },
+    "address": {
+      "type": "string",
+      "description": "Postal or campus address"
+    },
+    "category": {
+      "type": "string",
+      "description": "Building classification (e.g., 'college', 'hospital', 'mall')"
+    },
+    "latitude": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90,
+      "description": "WGS84 GPS latitude of the building reference anchor"
+    },
+    "longitude": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180,
+      "description": "WGS84 GPS longitude of the building reference anchor"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional open metadata dictionary",
+      "default": {}
+    }
+  },
+  "additionalProperties": true
+}

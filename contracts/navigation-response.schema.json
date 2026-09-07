@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NavigationResponse",
+  "description": "Schema for an indoor route calculation response in MapLess AI",
+  "type": "object",
+  "required": [
+    "success",
+    "pathNodeIds",
+    "totalDistance",
+    "estimatedTimeSeconds",
+    "turnInstructions"
+  ],
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "True if a valid path was computed"
+    },
+    "pathNodeIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered sequence of node IDs along the route from start to destination"
+    },
+    "edgeIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered sequence of edge IDs traversed along the route"
+    },
+    "totalDistance": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total route distance in meters"
+    },
+    "estimatedTimeSeconds": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Estimated walking time in seconds (standard walking speed ~1.2 m/s)"
+    },
+    "turnInstructions": {
+      "type": "array",
+      "description": "Step-by-step turn guidance for the user",
+      "items": {
+        "type": "object",
+        "required": ["step", "instruction", "distance", "bearing"],
+        "properties": {
+          "step": { "type": "integer" },
+          "instruction": { "type": "string" },
+          "distance": { "type": "number" },
+          "bearing": { "type": "number" },
+          "nodeId": { "type": "string" }
+        }
+      }
+    },
+    "floorTransitions": {
+      "type": "array",
+      "description": "Multi-floor transition steps via stairs or elevators",
+      "items": {
+        "type": "object",
+        "required": ["fromFloorId", "toFloorId", "viaType", "nodeId"],
+        "properties": {
+          "fromFloorId": { "type": "string" },
+          "toFloorId": { "type": "string" },
+          "viaType": {
+            "type": "string",
+            "enum": ["stairs", "elevator", "ramp"]
+          },
+          "nodeId": { "type": "string" }
+        }
+      }
+    },
+    "message": {
+      "type": "string",
+      "description": "Status message or explanation when no route is found"
+    }
+  },
+  "additionalProperties": true
+}

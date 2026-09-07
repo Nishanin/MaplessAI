@@ -1,0 +1,328 @@
+{
+  "building": {
+    "id": "vit-ce",
+    "name": "VIT Computer Engineering",
+    "address": "VIT Campus, Upper Indira Nagar, Bibwewadi, Pune, Maharashtra 411037",
+    "category": "college",
+    "latitude": 18.4636,
+    "longitude": 73.8682,
+    "metadata": {
+      "campus": "Pune Main Campus",
+      "departments": ["Computer Engineering", "Information Technology"]
+    }
+  },
+  "floor": {
+    "id": "floor-1",
+    "buildingId": "vit-ce",
+    "floorNumber": 1,
+    "name": "First Floor",
+    "elevation": 4.0,
+    "metadata": {
+      "wings": ["A-Wing", "B-Wing"]
+    }
+  },
+  "nodes": [
+    {
+      "id": "entrance",
+      "name": "Main Entrance",
+      "category": "entrance",
+      "floorId": "floor-1",
+      "x": 0.0,
+      "y": 15.0,
+      "accessible": true,
+      "metadata": {
+        "isExternal": true,
+        "entryType": "pedestrian"
+      }
+    },
+    {
+      "id": "reception",
+      "name": "Reception",
+      "category": "service",
+      "floorId": "floor-1",
+      "x": 10.0,
+      "y": 15.0,
+      "accessible": true,
+      "metadata": {
+        "deskName": "Department Info Desk",
+        "hasStaff": true
+      }
+    },
+    {
+      "id": "corridor",
+      "name": "Main Corridor",
+      "category": "corridor",
+      "floorId": "floor-1",
+      "x": 25.0,
+      "y": 15.0,
+      "accessible": true,
+      "metadata": {
+        "widthMeters": 3.0
+      }
+    },
+    {
+      "id": "lab-101",
+      "name": "Lab 101",
+      "category": "laboratory",
+      "floorId": "floor-1",
+      "x": 25.0,
+      "y": 30.0,
+      "accessible": true,
+      "metadata": {
+        "labName": "Advanced Computing Lab",
+        "capacity": 45,
+        "department": "Computer Engineering"
+      }
+    },
+    {
+      "id": "library",
+      "name": "Department Library",
+      "category": "facility",
+      "floorId": "floor-1",
+      "x": 25.0,
+      "y": 0.0,
+      "accessible": true,
+      "metadata": {
+        "section": "Technical Reference",
+        "quietZone": true
+      }
+    },
+    {
+      "id": "staircase",
+      "name": "Staircase A",
+      "category": "stairs",
+      "floorId": "floor-1",
+      "x": 25.0,
+      "y": -10.0,
+      "accessible": false,
+      "metadata": {
+        "stepCount": 24,
+        "connectsFloors": [0, 1, 2]
+      }
+    },
+    {
+      "id": "lift",
+      "name": "Elevator 1",
+      "category": "elevator",
+      "floorId": "floor-1",
+      "x": 10.0,
+      "y": 25.0,
+      "accessible": true,
+      "metadata": {
+        "maxCapacityWeightKg": 1000,
+        "brailleButtons": true,
+        "connectsFloors": [0, 1, 2, 3]
+      }
+    },
+    {
+      "id": "exit-a",
+      "name": "Emergency Exit A",
+      "category": "emergency_exit",
+      "floorId": "floor-1",
+      "x": 25.0,
+      "y": -20.0,
+      "accessible": true,
+      "metadata": {
+        "hasPanicBar": true,
+        "alarmEquipped": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-entrance-reception",
+      "startNodeId": "entrance",
+      "endNodeId": "reception",
+      "distance": 10.0,
+      "bearing": 90.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-reception-entrance",
+      "startNodeId": "reception",
+      "endNodeId": "entrance",
+      "distance": 10.0,
+      "bearing": 270.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-reception-corridor",
+      "startNodeId": "reception",
+      "endNodeId": "corridor",
+      "distance": 15.0,
+      "bearing": 90.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor-reception",
+      "startNodeId": "corridor",
+      "endNodeId": "reception",
+      "distance": 15.0,
+      "bearing": 270.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-reception-lift",
+      "startNodeId": "reception",
+      "endNodeId": "lift",
+      "distance": 10.0,
+      "bearing": 0.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-lift-reception",
+      "startNodeId": "lift",
+      "endNodeId": "reception",
+      "distance": 10.0,
+      "bearing": 180.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor-lab101",
+      "startNodeId": "corridor",
+      "endNodeId": "lab-101",
+      "distance": 15.0,
+      "bearing": 0.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-lab101-corridor",
+      "startNodeId": "lab-101",
+      "endNodeId": "corridor",
+      "distance": 15.0,
+      "bearing": 180.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor-library",
+      "startNodeId": "corridor",
+      "endNodeId": "library",
+      "distance": 15.0,
+      "bearing": 180.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "carpet" }
+    },
+    {
+      "id": "edge-library-corridor",
+      "startNodeId": "library",
+      "endNodeId": "corridor",
+      "distance": 15.0,
+      "bearing": 0.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "carpet" }
+    },
+    {
+      "id": "edge-library-staircase",
+      "startNodeId": "library",
+      "endNodeId": "staircase",
+      "distance": 10.0,
+      "bearing": 180.0,
+      "accessible": false,
+      "blocked": false,
+      "metadata": { "surface": "concrete" }
+    },
+    {
+      "id": "edge-staircase-library",
+      "startNodeId": "staircase",
+      "endNodeId": "library",
+      "distance": 10.0,
+      "bearing": 0.0,
+      "accessible": false,
+      "blocked": false,
+      "metadata": { "surface": "concrete" }
+    },
+    {
+      "id": "edge-staircase-exita",
+      "startNodeId": "staircase",
+      "endNodeId": "exit-a",
+      "distance": 10.0,
+      "bearing": 180.0,
+      "accessible": false,
+      "blocked": false,
+      "metadata": { "surface": "concrete" }
+    },
+    {
+      "id": "edge-exita-staircase",
+      "startNodeId": "exit-a",
+      "endNodeId": "staircase",
+      "distance": 10.0,
+      "bearing": 0.0,
+      "accessible": false,
+      "blocked": false,
+      "metadata": { "surface": "concrete" }
+    }
+  ],
+  "semanticMetadata": [
+    {
+      "entityId": "lab-101",
+      "entityType": "node",
+      "tags": ["computers", "software", "ai", "programming", "linux", "workstations"],
+      "aliases": ["Software Lab 1", "Computer Lab 101", "Advanced Computing Lab"],
+      "description": "Department computer lab equipped with high-performance workstations for software development and AI experiments.",
+      "department": "Computer Engineering",
+      "operationalHours": "08:00 - 18:00",
+      "capacity": 45,
+      "customAttributes": {
+        "airConditioned": true,
+        "projectorAvailable": true
+      }
+    },
+    {
+      "entityId": "library",
+      "entityType": "node",
+      "tags": ["books", "study", "research", "quiet", "journals"],
+      "aliases": ["Dept Library", "CE Reference Section"],
+      "description": "Quiet study zone with reference material for computer engineering and spatial intelligence literature.",
+      "department": "Computer Engineering",
+      "operationalHours": "09:00 - 17:00",
+      "capacity": 60,
+      "customAttributes": {
+        "wifiZone": true
+      }
+    },
+    {
+      "entityId": "reception",
+      "entityType": "node",
+      "tags": ["help", "info", "inquiries", "visitor desk", "staff"],
+      "aliases": ["Help Desk", "Front Desk", "Information Desk"],
+      "description": "Primary visitor reception and information checkpoint for First Floor.",
+      "department": "Administration",
+      "operationalHours": "08:30 - 17:30",
+      "capacity": 5,
+      "customAttributes": {
+        "emergencyFirstAid": true
+      }
+    },
+    {
+      "entityId": "exit-a",
+      "entityType": "node",
+      "tags": ["emergency", "fire exit", "safety", "evacuation"],
+      "aliases": ["Fire Exit 1", "Emergency Door South"],
+      "description": "External fire exit leading to South Assembly Point.",
+      "department": "Safety & Facilities",
+      "operationalHours": "24/7",
+      "capacity": 100,
+      "customAttributes": {
+        "evacuationPriority": 1
+      }
+    }
+  ]
+}
