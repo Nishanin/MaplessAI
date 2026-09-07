@@ -1,6 +1,6 @@
 # MapLess AI Full Test Suite Runner
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "  MapLess AI — Running All Tests" -ForegroundColor Cyan
+Write-Host "  MapLess AI -- Running All Tests" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
 # 1. Backend Tests
@@ -20,11 +20,13 @@ $flutterStatus = $LASTEXITCODE
 Pop-Location
 
 Write-Host "`n=========================================" -ForegroundColor Cyan
-if ($backendStatus -eq 0 -and $analyzeStatus -eq 0 -and $flutterStatus -eq 0) {
-    Write-Host "✔ ALL TESTS & ANALYZERS PASSED" -ForegroundColor Green
+$allPassed = ($backendStatus -eq 0) -and ($analyzeStatus -eq 0) -and ($flutterStatus -eq 0)
+
+if ($allPassed) {
+    Write-Host "[OK] ALL TESTS AND ANALYZERS PASSED" -ForegroundColor Green
     exit 0
 } else {
-    Write-Host "❌ SOME CHECKS FAILED:" -ForegroundColor Red
+    Write-Host "[ERROR] SOME CHECKS FAILED:" -ForegroundColor Red
     if ($backendStatus -ne 0) { Write-Host "  - Backend tests failed" -ForegroundColor Red }
     if ($analyzeStatus -ne 0) { Write-Host "  - Flutter analyze failed" -ForegroundColor Red }
     if ($flutterStatus -ne 0) { Write-Host "  - Flutter tests failed" -ForegroundColor Red }

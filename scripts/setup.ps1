@@ -1,6 +1,6 @@
 # MapLess AI Local Environment Setup Script
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "  MapLess AI — Project Setup" -ForegroundColor Cyan
+Write-Host "  MapLess AI -- Project Setup" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
 # 1. Backend Setup
@@ -25,6 +25,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 Pop-Location
 
-Write-Host "`n✔ MapLess AI environment successfully initialized!" -ForegroundColor Green
+Write-Host "`n[OK] MapLess AI environment successfully initialized!" -ForegroundColor Green
 Write-Host "  To run backend: cd backend && npm start"
 Write-Host "  To run mobile:  cd apps/mobile && flutter run"
