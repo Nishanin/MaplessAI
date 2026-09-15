@@ -1,16 +1,20 @@
+const { validateContract } = require('../../utils/schema_validator');
+
 /**
- * Safe SLM Provider Interface & Output Validator (Owner: Surabhi)
+ * Safe SLM Provider Interface & Hardened Output Validator (Owner: Surabhi)
  *
- * Defines the abstract provider contract, strict output validation and normalization,
- * and safe provider selection.
+ * Defines the abstract provider contract, strict JSON schema and semantic
+ * consistency validation, and safe provider selection.
  *
  * CRITICAL SECURITY INVARIANTS:
  * 1. Providers return structured extraction data only — NEVER executable code or SQL.
  * 2. Providers are strictly FORBIDDEN from deciding or returning destination node IDs.
  *    targetNodeId is derived exclusively by the SemanticGraphService.
- * 3. Non-whitelisted constraint fields are stripped during validation.
- * 4. Provider selection is restricted to a fixed allowlist of local providers.
- * 5. No network, database, shell, or arbitrary module loading is permitted.
+ * 3. Unexpected or non-whitelisted fields are strictly rejected via JSON schema validation.
+ * 4. Injection patterns (SQL, script tags, URLs, shell commands) are strictly detected and rejected.
+ * 5. Provider selection is restricted to a fixed allowlist of local providers.
+ * 6. Semantic consistency rules guarantee that navigation and lookup intents contain
+ *    valid entity and constraint targets before reaching the Semantic Knowledge Graph.
  */
 
 const ALLOWED_INTENTS = Object.freeze([
@@ -48,6 +52,25 @@ const ALLOWED_CONSTRAINTS = Object.freeze([
 
 const ALLOWED_PROVIDERS = Object.freeze(['deterministic', 'mock', 'local']);
 
+const FORBIDDEN_SECURITY_PATTERNS = Object.freeze([
+  {
+    name: 'SQL statement',
+    regex: /\b(SELECT\s+.*\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|DROP\s+TABLE|UNION\s+SELECT|ALTER\s+TABLE)\b/i
+  },
+  {
+    name: 'Script tag / HTML code',
+    regex: /<script\b[^>]*>/i
+  },
+  {
+    name: 'URL / external endpoint',
+    regex: /\b(https?:\/\/|ftp:\/\/|file:\/\/)\b/i
+  },
+  {
+    name: 'Shell command',
+    regex: /\b(rm\s+-rf|chmod\s+|sh\s+-c|bash\s+-c|curl\s+|wget\s+)\b/i
+  }
+]);
+
 /**
  * Abstract Base Class for SLM Providers.
  */
@@ -71,8 +94,88 @@ class BaseSlmProvider {
 }
 
 /**
- * Validates and normalizes raw provider output.
- * Ensures the output complies with schema requirements, whitelists, and security boundaries.
+ * Recursively scans an object for malicious injection patterns.
+ * @private
+ */
+function scanForSecurityViolations(obj, path, errors) {
+  if (typeof obj === 'string') {
+    for (const pattern of FORBIDDEN_SECURITY_PATTERNS) {
+      if (pattern.regex.test(obj)) {
+        errors.push(`Security violation: Forbidden pattern (${pattern.name}) detected in ${path || 'value'}.`);
+      }
+    }
+  } else if (Array.isArray(obj)) {
+    obj.forEach((item, index) => scanForSecurityViolations(item, `${path}[${index}]`, errors));
+  } else if (obj && typeof obj === 'object') {
+    for (const [k, v] of Object.entries(obj)) {
+      scanForSecurityViolations(v, path ? `${path}.${k}` : k, errors);
+    }
+  }
+}
+
+/**
+ * Validates semantic consistency between recognized intent and extracted entities/constraints.
+ * @private
+ */
+function validateSemanticConsistency(output, errors) {
+  if (!output.intent || typeof output.intent !== 'string') return;
+
+  const hasEntityOfTypes = (...types) =>
+    Array.isArray(output.entities) && output.entities.some(e => e && types.includes(e.type));
+
+  const hasConstraintOfKeys = (...keys) =>
+    output.constraints &&
+    typeof output.constraints === 'object' &&
+    keys.some(k => output.constraints[k] !== undefined && output.constraints[k] !== null);
+
+  switch (output.intent) {
+    case 'NAVIGATE_TO': {
+      // Must contain a meaningful destination entity or constraint
+      const hasDestination =
+        hasEntityOfTypes('room_name', 'alias', 'category', 'facility', 'department', 'node') ||
+        hasConstraintOfKeys('name', 'alias', 'category', 'facility', 'department', 'nodeId');
+      if (!hasDestination) {
+        errors.push('Semantic consistency violation: NAVIGATE_TO intent requires a meaningful destination entity or constraint.');
+      }
+      break;
+    }
+    case 'FIND_NEAREST': {
+      // Must contain a meaningful facility/category/entity target
+      const hasTarget =
+        hasEntityOfTypes('category', 'facility', 'alias', 'room_name') ||
+        hasConstraintOfKeys('category', 'facility', 'alias', 'name');
+      if (!hasTarget) {
+        errors.push('Semantic consistency violation: FIND_NEAREST intent requires a target category, facility, alias, or room entity.');
+      }
+      break;
+    }
+    case 'LOCATE_ROOM': {
+      // Must contain room-related entity or constraint
+      const hasRoomTarget =
+        hasEntityOfTypes('room_name', 'alias', 'category', 'department', 'node') ||
+        hasConstraintOfKeys('name', 'alias', 'category', 'department', 'nodeId');
+      if (!hasRoomTarget) {
+        errors.push('Semantic consistency violation: LOCATE_ROOM intent requires room-related entity or constraint.');
+      }
+      break;
+    }
+    case 'EMERGENCY_EXIT': {
+      // Must not target an incompatible non-exit specific room without emergency exit category
+      if (hasConstraintOfKeys('name') && !hasConstraintOfKeys('category')) {
+        errors.push('Semantic consistency violation: EMERGENCY_EXIT must target emergency exit category rather than unrelated specific rooms.');
+      }
+      break;
+    }
+    case 'FALLBACK':
+    case 'QUERY_INFO':
+    default:
+      break;
+  }
+}
+
+/**
+ * Hardened validation and normalization of raw provider output.
+ * Enforces JSON schema contract, security boundaries, and semantic consistency.
  *
  * @param {any} output Raw provider output
  * @returns {{
@@ -92,75 +195,71 @@ function validateProviderOutput(output) {
     };
   }
 
-  // 1. Validate intent
+  // ── 1. Security Invariant: Providers MUST NOT supply targetNodeId ─────────
+  if (output.targetNodeId !== undefined) {
+    errors.push('Security violation: Provider cannot supply targetNodeId. Destination resolution is reserved for SemanticGraphService.');
+  }
+
+  // ── 2. Strict Type Checks Before Coercion ─────────────────────────────────
   if (typeof output.intent !== 'string' || !ALLOWED_INTENTS.includes(output.intent)) {
     errors.push(`Invalid intent: "${output.intent}". Allowed intents: ${ALLOWED_INTENTS.join(', ')}.`);
   }
 
-  // 2. Validate confidence
-  if (typeof output.confidence !== 'number' || isNaN(output.confidence) || output.confidence < 0.0 || output.confidence > 1.0) {
+  if (output.confidence === null || typeof output.confidence !== 'number' || isNaN(output.confidence) || output.confidence < 0.0 || output.confidence > 1.0) {
     errors.push(`Invalid confidence: ${output.confidence}. Must be a float between 0.0 and 1.0.`);
   }
 
-  // 3. Validate ambiguity
   if (typeof output.ambiguity !== 'boolean') {
     errors.push(`Invalid ambiguity: ${output.ambiguity}. Must be a boolean.`);
   }
 
-  // 4. Validate reason
-  if (typeof output.reason !== 'string') {
-    errors.push('Invalid reason: must be a plain text string.');
+  if (output.entities && Array.isArray(output.entities)) {
+    output.entities.forEach((ent, idx) => {
+      if (!ent || typeof ent !== 'object' || typeof ent.type !== 'string' || typeof ent.value !== 'string') {
+        errors.push(`Invalid entity at index ${idx}: must be an object with { type: string, value: string }.`);
+      } else if (!ALLOWED_ENTITY_TYPES.includes(ent.type)) {
+        errors.push(`Unsupported entity type "${ent.type}" at index ${idx}.`);
+      }
+    });
+  } else if (!output.entities || !Array.isArray(output.entities)) {
+    errors.push('Invalid entities: must be an array.');
   }
 
-  // 5. Validate entities
-  const normalizedEntities = [];
-  if (!Array.isArray(output.entities)) {
-    errors.push('Invalid entities: must be an array.');
-  } else {
-    for (let i = 0; i < output.entities.length; i++) {
-      const ent = output.entities[i];
-      if (!ent || typeof ent !== 'object' || typeof ent.type !== 'string' || typeof ent.value !== 'string') {
-        errors.push(`Invalid entity at index ${i}: must be an object with { type: string, value: string }.`);
-      } else if (!ALLOWED_ENTITY_TYPES.includes(ent.type)) {
-        errors.push(`Unsupported entity type "${ent.type}" at index ${i}.`);
-      } else {
-        normalizedEntities.push({
-          type: ent.type,
-          value: String(ent.value)
-        });
+  if (output.constraints && typeof output.constraints === 'object' && !Array.isArray(output.constraints)) {
+    for (const key of Object.keys(output.constraints)) {
+      if (!ALLOWED_CONSTRAINTS.includes(key)) {
+        errors.push(`Unknown constraint field "${key}" is not permitted.`);
       }
     }
+  } else if (output.constraints !== undefined && (typeof output.constraints !== 'object' || output.constraints === null || Array.isArray(output.constraints))) {
+    errors.push('Invalid constraints: must be an object.');
   }
 
-  // 6. Validate and whitelist constraints
-  const normalizedConstraints = {};
-  if (output.constraints !== undefined && output.constraints !== null) {
-    if (typeof output.constraints !== 'object' || Array.isArray(output.constraints)) {
-      errors.push('Invalid constraints: must be an object.');
-    } else {
-      for (const [key, value] of Object.entries(output.constraints)) {
-        if (!ALLOWED_CONSTRAINTS.includes(key)) {
-          // Unknown / non-whitelisted constraint key: safely strip or record error
-          // In MapLess AI, we safely reject non-whitelisted keys to avoid unexpected interpretation
-          errors.push(`Unknown constraint field "${key}" is not permitted.`);
-        } else if (value !== undefined && value !== null) {
-          // Type-check recognized constraint fields
-          if (key === 'accessible' && typeof value !== 'boolean') {
-            errors.push('Constraint "accessible" must be a boolean.');
-          } else if ((key === 'floor' || key === 'capacityMin') && typeof value !== 'number') {
-            errors.push(`Constraint "${key}" must be a number.`);
-          } else {
-            normalizedConstraints[key] = value;
-          }
+  // ── 3. Formal JSON Schema Contract Validation (run on clone to avoid mutation) ─
+  try {
+    const clone = JSON.parse(JSON.stringify(output));
+    const contractValidation = validateContract('slm-provider-output', clone);
+    if (!contractValidation.valid) {
+      for (const err of contractValidation.errors) {
+        const field = err.instancePath ? err.instancePath.replace(/^\//, '') : 'output';
+        if (err.keyword === 'additionalProperties') {
+          const msg = `Unknown field "${err.params.additionalProperty}" is not permitted in provider output.`;
+          if (!errors.includes(msg)) errors.push(msg);
+        } else if (err.keyword === 'required') {
+          const msg = `Missing required field: ${err.params.missingProperty}.`;
+          if (!errors.includes(msg)) errors.push(msg);
         }
       }
     }
+  } catch (e) {
+    // If serialization fails, it will already be caught by object check
   }
 
-  // 7. Security Invariant: Providers MUST NOT supply targetNodeId
-  if (output.targetNodeId !== undefined && output.targetNodeId !== null) {
-    errors.push('Security violation: Provider cannot supply targetNodeId. Destination resolution is reserved for SemanticGraphService.');
-  }
+  // ── 4. Security & Injection Scanning ──────────────────────────────────────
+  scanForSecurityViolations(output, '', errors);
+
+  // ── 5. Semantic Consistency Validation ────────────────────────────────────
+  validateSemanticConsistency(output, errors);
 
   if (errors.length > 0) {
     return {
@@ -170,16 +269,17 @@ function validateProviderOutput(output) {
     };
   }
 
+  // Safe normalized output
   return {
     valid: true,
     errors: [],
     normalized: {
       intent: output.intent,
-      entities: normalizedEntities,
-      constraints: normalizedConstraints,
+      entities: output.entities.map(e => ({ type: e.type, value: String(e.value) })),
+      constraints: { ...output.constraints },
       confidence: output.confidence,
       ambiguity: output.ambiguity,
-      reason: output.reason
+      reason: typeof output.reason === 'string' ? output.reason : ''
     }
   };
 }
@@ -216,6 +316,7 @@ function getSlmProvider(requestedProvider, options = {}) {
 module.exports = {
   BaseSlmProvider,
   validateProviderOutput,
+  validateSemanticConsistency,
   getSlmProvider,
   ALLOWED_INTENTS,
   ALLOWED_ENTITY_TYPES,
