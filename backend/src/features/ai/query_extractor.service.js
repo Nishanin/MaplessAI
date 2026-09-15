@@ -1,10 +1,10 @@
 const semanticGraphService = require('./semantic_graph.service');
 
 /**
- * Query Extractor Service (Owner: Surabhi)
+ * Enhanced Query Extractor Service (Owner: Surabhi)
  *
- * Deterministic, rule-based extraction layer that converts natural-language text
- * into controlled structured intents, entities, constraints, confidence scores,
+ * Deterministic, rule-based extraction layer that converts natural-language campus
+ * queries into controlled structured intents, entities, constraints, confidence scores,
  * ambiguity flags, and explainability reasons.
  *
  * CRITICAL SECURITY INVARIANTS:
@@ -12,6 +12,8 @@ const semanticGraphService = require('./semantic_graph.service');
  * 2. It performs strictly deterministic, in-memory string parsing and extraction.
  * 3. Constraints are strictly whitelisted and typed.
  * 4. Never invents node IDs. Node resolution is left entirely to the SemanticGraphService.
+ * 5. Avoids overmatching: generic words (e.g. bare "room") without identifiers are
+ *    flagged as ambiguous, never guessed.
  */
 
 const ALLOWED_CONSTRAINTS = Object.freeze([
@@ -55,8 +57,30 @@ class QueryExtractorService {
       };
     }
 
+    // ── Security Check: Reject SQL injection and script patterns ────────────
+    const MALICIOUS_PATTERNS = [
+      /\b(select\s+.+\s+from)\b/i,
+      /\b(union\s+(all\s+)?select)\b/i,
+      /\b(insert\s+into)\b/i,
+      /\b(drop\s+table)\b/i,
+      /\b(delete\s+from)\b/i,
+      /--/,
+      /<script\b[^>]*>/i,
+      /javascript:/i
+    ];
+    if (MALICIOUS_PATTERNS.some(p => p.test(text))) {
+      return {
+        intent: 'FALLBACK',
+        entities: [],
+        constraints: {},
+        confidence: 0.0,
+        ambiguity: false,
+        reason: 'malicious or injection pattern detected'
+      };
+    }
+
     const rawLower = text.toLowerCase();
-    const cleanText = rawLower.replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+    const cleanText = rawLower.replace(/[^\w\s+-]/g, ' ').replace(/\s+/g, ' ').trim();
 
     let intent = null;
     const entities = [];
@@ -65,68 +89,87 @@ class QueryExtractorService {
     let ambiguity = false;
     let reason = 'unsupported or off-topic request';
 
-    // ── Check Accessibility Requirement ────────────────────────────────────
-    const hasAccessibleKeyword = /\b(accessible|wheelchair|step-free|stepfree|barrier-free|ramp)\b/i.test(cleanText);
-    const userRequiresAccessible = userContext && userContext.accessible === true;
+    // ── 1. Normalization Helpers ────────────────────────────────────────────
 
+    // A. Accessibility
+    const hasAccessibleKeyword = /\b(accessible|wheelchair|handicap|step-free|stepfree|barrier-free|ramp|ramp\s+access)\b/i.test(cleanText);
+    const userRequiresAccessible = userContext && userContext.accessible === true;
     if (hasAccessibleKeyword || userRequiresAccessible) {
       rawConstraints.accessible = true;
       entities.push({ type: 'accessibility', value: 'accessible' });
     }
 
-    // ── Check Graph-backed Entities ────────────────────────────────────────
-    const matchedAlias = semanticGraphService.findAliasInText(text);
-    const matchedName = semanticGraphService.findNameInText(text);
-    const matchedDept = semanticGraphService.findDepartmentInText(text);
+    // B. Floor Normalization
+    const floorNormalized = this._normalizeFloor(cleanText);
+    if (floorNormalized !== null) {
+      rawConstraints.floor = floorNormalized;
+      entities.push({ type: 'floor', value: String(floorNormalized) });
+    }
 
-    // ── Check Facility / Amenity Keywords (word-boundary safe) ─────────────
-    if (/\b(wifi|wi-fi|internet)\b/i.test(cleanText)) {
+    // C. Capacity Normalization
+    const capacityMin = this._normalizeCapacity(cleanText);
+    if (capacityMin !== null) {
+      rawConstraints.capacityMin = capacityMin;
+      entities.push({ type: 'facility', value: `capacityMin:${capacityMin}` });
+    }
+
+    // D. Facilities & Amenities
+    if (/\b(wifi|wi-fi|internet|wireless)\b/i.test(cleanText)) {
       rawConstraints.facility = 'wifiZone';
       entities.push({ type: 'facility', value: 'wifiZone' });
     }
-    if (/\b(projector)\b/i.test(cleanText)) {
+    if (/\b(projector|projection|screen)\b/i.test(cleanText)) {
       rawConstraints.facility = 'projectorAvailable';
       entities.push({ type: 'facility', value: 'projectorAvailable' });
     }
-    if (/\b(ac|air\s*conditioned|air\s*conditioning)\b/i.test(cleanText)) {
+    if (/\b(ac|air\s*conditioned|air\s*conditioning|central\s*ac)\b/i.test(cleanText)) {
       rawConstraints.facility = 'airConditioned';
       entities.push({ type: 'facility', value: 'airConditioned' });
     }
-    if (/\b(braille)\b/i.test(cleanText)) {
+    if (/\b(braille|braille\s+buttons)\b/i.test(cleanText)) {
       rawConstraints.facility = 'brailleButtons';
       entities.push({ type: 'facility', value: 'brailleButtons' });
     }
-    if (/\b(first\s*aid|emergency\s*kit)\b/i.test(cleanText)) {
+    if (/\b(first\s*aid|emergency\s*kit|medical\s*kit)\b/i.test(cleanText)) {
       rawConstraints.facility = 'emergencyFirstAid';
       entities.push({ type: 'facility', value: 'emergencyFirstAid' });
     }
 
-    // ── Check Floor Keywords ───────────────────────────────────────────────
-    if (/\b(first\s+floor|floor\s+1|1st\s+floor)\b/i.test(cleanText)) {
-      rawConstraints.floor = 1;
-      entities.push({ type: 'floor', value: '1' });
+    // E. Category Synonyms
+    const detectedCategory = this._normalizeCategory(cleanText);
+
+    // F. Department Synonyms & Graph Lookups
+    const detectedDepartment = this._normalizeDepartment(cleanText) || semanticGraphService.findDepartmentInText(text);
+    if (detectedDepartment) {
+      rawConstraints.department = detectedDepartment;
+      entities.push({ type: 'department', value: detectedDepartment });
     }
 
-    // ── Check Conflicting / Contradictory Categories ───────────────────────
-    const requestedCategories = [];
-    if (/\b(lab|labs|laboratory|laboratories)\b/i.test(cleanText)) {
-      requestedCategories.push('laboratory');
-    }
-    if (/\b(exit|exits|emergency|evacuat\w*)\b/i.test(cleanText)) {
-      requestedCategories.push('emergency_exit');
-    }
-    if (/\b(lift|lifts|elevator|elevators)\b/i.test(cleanText)) {
-      requestedCategories.push('elevator');
-    }
-    if (/\b(restroom|restrooms|toilet|toilets|washroom|washrooms)\b/i.test(cleanText)) {
-      requestedCategories.push('restroom');
+    // G. Room Identifier / Name / Alias Normalization
+    const matchedAlias = semanticGraphService.findAliasInText(text);
+    const matchedName = semanticGraphService.findNameInText(text);
+    const roomIdentifier = this._normalizeRoomIdentifier(cleanText);
+
+    // Specific AI Lab tag recognition (e.g. "AI lab" matches tag 'ai' on lab-101)
+    const isAiLab = /\b(ai\s+lab|ai\s+laboratory|artificial\s+intelligence\s+lab)\b/i.test(cleanText);
+    if (isAiLab) {
+      rawConstraints.category = 'laboratory';
+      rawConstraints.tag = 'ai';
+      entities.push({ type: 'category', value: 'laboratory' });
+      entities.push({ type: 'alias', value: 'AI Lab' });
     }
 
-    if (requestedCategories.length > 1) {
-      // Contradictory request asking for multiple disparate categories at once
+    // ── 2. Conflicting / Contradictory Categories Check ─────────────────────
+    const conflictingCategories = [];
+    if (/\b(lab|labs|laboratory|laboratories)\b/i.test(cleanText)) conflictingCategories.push('laboratory');
+    if (/\b(exit|exits|emergency|evacuat\w*)\b/i.test(cleanText)) conflictingCategories.push('emergency_exit');
+    if (/\b(lift|lifts|elevator|elevators)\b/i.test(cleanText)) conflictingCategories.push('elevator');
+    if (/\b(restroom|restrooms|washroom|washrooms|toilet|toilets|lavatory|lavatories)\b/i.test(cleanText)) conflictingCategories.push('restroom');
+
+    if (conflictingCategories.length > 1) {
       return {
         intent: 'FALLBACK',
-        entities: requestedCategories.map(c => ({ type: 'category', value: c })),
+        entities: conflictingCategories.map(c => ({ type: 'category', value: c })),
         constraints: {},
         confidence: 0.40,
         ambiguity: true,
@@ -134,36 +177,24 @@ class QueryExtractorService {
       };
     }
 
-    // ── Intent Extraction Logic ────────────────────────────────────────────
+    // ── 3. Intent Determination Logic ───────────────────────────────────────
 
-    // Pattern 1: Emergency Exit Request
-    if (/\b(exit|exits|emergency|evacuat\w*)\b/i.test(cleanText)) {
+    // Pattern A: Emergency Exit / Evacuation
+    if (/\b(exit|exits|emergency|evacuat\w*|fire\s+exit|fire\s+door)\b/i.test(cleanText)) {
       intent = 'EMERGENCY_EXIT';
       entities.push({ type: 'category', value: 'emergency_exit' });
       rawConstraints.category = 'emergency_exit';
-      confidence = 0.90;
+      confidence = 0.95;
       reason = 'recognized emergency exit category';
     }
-    // Pattern 2: Nearest / Closest Request
-    else if (/\b(nearest|closest)\b/i.test(cleanText)) {
-      if (/\b(lab|labs|laboratory|laboratories)\b/i.test(cleanText)) {
+    // Pattern B: Nearest / Closest / Nearby Facility
+    else if (/\b(nearest|closest|nearby)\b/i.test(cleanText)) {
+      if (detectedCategory) {
         intent = 'FIND_NEAREST';
-        entities.push({ type: 'category', value: 'laboratory' });
-        rawConstraints.category = 'laboratory';
-        confidence = 0.85;
-        reason = 'recognized nearest laboratory request';
-      } else if (/\b(lift|lifts|elevator|elevators)\b/i.test(cleanText)) {
-        intent = 'FIND_NEAREST';
-        entities.push({ type: 'category', value: 'elevator' });
-        rawConstraints.category = 'elevator';
-        confidence = 0.85;
-        reason = 'recognized nearest elevator request';
-      } else if (/\b(restroom|restrooms|toilet|toilets|washroom|washrooms)\b/i.test(cleanText)) {
-        intent = 'FIND_NEAREST';
-        entities.push({ type: 'category', value: 'restroom' });
-        rawConstraints.category = 'restroom';
-        confidence = 0.80;
-        reason = 'recognized nearest restroom request';
+        entities.push({ type: 'category', value: detectedCategory });
+        rawConstraints.category = detectedCategory;
+        confidence = 0.90;
+        reason = `recognized nearest request for category: ${detectedCategory}`;
       } else if (matchedAlias) {
         intent = 'FIND_NEAREST';
         entities.push({ type: 'alias', value: matchedAlias });
@@ -176,36 +207,47 @@ class QueryExtractorService {
         rawConstraints.name = matchedName;
         confidence = 0.85;
         reason = 'recognized nearest destination by room name';
+      } else if (rawConstraints.facility) {
+        intent = 'FIND_NEAREST';
+        confidence = 0.85;
+        reason = `recognized nearest request for facility: ${rawConstraints.facility}`;
       } else {
-        // "nearest" keyword present but destination missing
         intent = 'FALLBACK';
         confidence = 0.30;
         ambiguity = true;
         reason = 'nearest keyword present but no target destination specified';
       }
     }
-    // Pattern 3: Navigation Request ("take me", "navigate", "go to", "route to")
-    else if (/\b(take\s+me|navigate|go\s+to|route\s+to|directions\s+to)\b/i.test(cleanText)) {
+    // Pattern C: Navigation Request ("take me", "navigate", "go to", "route to", "directions to")
+    else if (/\b(take\s+me|navigate|go\s+to|route\s+to|directions\s+to|lead\s+me\s+to|how\s+to\s+get\s+to)\b/i.test(cleanText)) {
       intent = 'NAVIGATE_TO';
-      if (matchedAlias) {
+      if (isAiLab) {
+        confidence = 0.90;
+        reason = 'recognized navigation request for AI lab';
+      } else if (matchedAlias) {
         entities.push({ type: 'alias', value: matchedAlias });
         rawConstraints.alias = matchedAlias;
-        confidence = 0.85;
+        confidence = 0.90;
         reason = 'recognized navigation request for known alias';
       } else if (matchedName) {
         entities.push({ type: 'room_name', value: matchedName });
         rawConstraints.name = matchedName;
-        confidence = 0.85;
+        confidence = 0.90;
         reason = 'recognized navigation request for known room name';
-      } else if (/\b(lab|labs|laboratory|laboratories)\b/i.test(cleanText)) {
-        entities.push({ type: 'category', value: 'laboratory' });
-        rawConstraints.category = 'laboratory';
-        confidence = 0.80;
-        reason = 'recognized navigation request for laboratory';
+      } else if (roomIdentifier) {
+        entities.push({ type: 'room_name', value: roomIdentifier });
+        rawConstraints.name = roomIdentifier;
+        confidence = 0.85;
+        reason = `recognized navigation request for room: ${roomIdentifier}`;
+      } else if (detectedCategory) {
+        entities.push({ type: 'category', value: detectedCategory });
+        rawConstraints.category = detectedCategory;
+        confidence = 0.85;
+        reason = `recognized navigation request for category: ${detectedCategory}`;
       } else if (/\b(library)\b/i.test(cleanText)) {
         entities.push({ type: 'category', value: 'facility' });
         rawConstraints.name = 'Department Library';
-        confidence = 0.80;
+        confidence = 0.85;
         reason = 'recognized navigation request for library';
       } else {
         confidence = 0.65;
@@ -213,71 +255,86 @@ class QueryExtractorService {
         reason = 'navigation requested without recognized destination';
       }
     }
-    // Pattern 4: Known Alias Mention (without explicit navigate/nearest verb)
-    else if (matchedAlias) {
-      intent = 'LOCATE_ROOM';
-      entities.push({ type: 'alias', value: matchedAlias });
-      rawConstraints.alias = matchedAlias;
-      confidence = 0.85;
-      reason = `matched known location alias: "${matchedAlias}"`;
+    // Pattern D: Operational Info / Facility Query ("open", "hours", "capacity", "wifi")
+    else if (
+      /\b(open|hours|operational\s+hours|timing|timings)\b/i.test(cleanText) ||
+      (/\b(capacity|wifi|air\s*conditioned|projector)\b/i.test(cleanText) &&
+        !/\b(find|locate|where|navigate|go\s+to|take\s+me|show\s+me|search)\b/i.test(cleanText))
+    ) {
+      intent = 'QUERY_INFO';
+      confidence = 0.80;
+      if (detectedCategory) {
+        rawConstraints.category = detectedCategory;
+        entities.push({ type: 'category', value: detectedCategory });
+      }
+      if (matchedName) {
+        rawConstraints.name = matchedName;
+        entities.push({ type: 'room_name', value: matchedName });
+      }
+      reason = 'recognized facility or operational info query';
     }
-    // Pattern 5: Known Room Name Mention
+    // Pattern E: Known Room Name Mention
     else if (matchedName) {
       intent = 'LOCATE_ROOM';
       entities.push({ type: 'room_name', value: matchedName });
       rawConstraints.name = matchedName;
-      confidence = 0.85;
+      confidence = 0.90;
       reason = `matched known room name: "${matchedName}"`;
     }
-    // Pattern 6: Known Department Mention
-    else if (matchedDept) {
+    // Pattern F: Known Alias Mention
+    else if (matchedAlias) {
       intent = 'LOCATE_ROOM';
-      entities.push({ type: 'department', value: matchedDept });
-      rawConstraints.department = matchedDept;
-      confidence = 0.75;
-      reason = `matched known department: "${matchedDept}"`;
+      entities.push({ type: 'alias', value: matchedAlias });
+      rawConstraints.alias = matchedAlias;
+      confidence = 0.90;
+      reason = `matched known location alias: "${matchedAlias}"`;
     }
-    // Pattern 7: Location Request ("where is", "find", "locate", "show me")
-    else if (/\b(where\s+is|find|locate|show\s+me)\b/i.test(cleanText)) {
-      if (/\b(lab|labs|laboratory|laboratories)\b/i.test(cleanText)) {
-        intent = 'LOCATE_ROOM';
-        entities.push({ type: 'category', value: 'laboratory' });
-        rawConstraints.category = 'laboratory';
-        confidence = 0.80;
-        reason = 'recognized location request for laboratory';
-      } else if (/\b(lift|lifts|elevator|elevators)\b/i.test(cleanText)) {
-        intent = 'LOCATE_ROOM';
-        entities.push({ type: 'category', value: 'elevator' });
-        rawConstraints.category = 'elevator';
-        confidence = 0.80;
-        reason = 'recognized location request for elevator';
-      } else if (/\b(library)\b/i.test(cleanText)) {
+    // Pattern G: Room Identifier Mention (e.g. "room 204", "locate room 204", "A-204")
+    else if (roomIdentifier) {
+      intent = 'LOCATE_ROOM';
+      entities.push({ type: 'room_name', value: roomIdentifier });
+      rawConstraints.name = roomIdentifier;
+      confidence = 0.85;
+      reason = `matched room identifier: "${roomIdentifier}"`;
+    }
+    // Pattern H: Department Mention (e.g. "Where can I find the CSE department?")
+    else if (detectedDepartment) {
+      intent = 'LOCATE_ROOM';
+      confidence = 0.85;
+      reason = `matched department: "${detectedDepartment}"`;
+    }
+    // Pattern I: Category Search (e.g. "Find an accessible entrance", "Where is the elevator?")
+    else if (detectedCategory) {
+      intent = 'LOCATE_ROOM';
+      entities.push({ type: 'category', value: detectedCategory });
+      rawConstraints.category = detectedCategory;
+      confidence = 0.85;
+      reason = `recognized location request for category: ${detectedCategory}`;
+    }
+    // Pattern J: Location query keywords ("where is", "find", "locate", "show me")
+    else if (/\b(where\s+(?:is|can\s+i\s+find|are)|find|locate|show\s+me|search\s+for)\b/i.test(cleanText)) {
+      if (/\b(library)\b/i.test(cleanText)) {
         intent = 'LOCATE_ROOM';
         entities.push({ type: 'room_name', value: 'Department Library' });
         rawConstraints.name = 'Department Library';
-        confidence = 0.80;
+        confidence = 0.85;
         reason = 'recognized location request for library';
       } else {
+        // Anti-overmatching: "where is the room?" or "find a room" without identifier
         intent = 'LOCATE_ROOM';
-        confidence = 0.60;
+        confidence = 0.50;
         ambiguity = true;
-        reason = 'location query missing destination name or category';
+        reason = 'location query missing specific room identifier or category';
       }
     }
-    // Pattern 8: Facility / Amenity Info Query
-    else if (/\b(open|hours|capacity|wifi|air\s*conditioned|projector)\b/i.test(cleanText)) {
-      intent = 'QUERY_INFO';
-      confidence = 0.70;
-      reason = 'recognized facility or operational info query';
-    }
-    // Pattern 9: Unrecognized / Off-topic
+    // Pattern K: Unrecognized / Off-topic
     else {
       intent = 'FALLBACK';
       confidence = 0.0;
       reason = 'unsupported or off-topic request';
     }
 
-    // ── Sanitize Constraints (Whitelist enforcement) ───────────────────────
+    // ── 4. Whitelist Constraints Enforcement ────────────────────────────────
     const sanitizedConstraints = {};
     for (const key of ALLOWED_CONSTRAINTS) {
       if (
@@ -289,7 +346,7 @@ class QueryExtractorService {
       }
     }
 
-    // Deduplicate entities
+    // ── 5. Deduplicate Entities ─────────────────────────────────────────────
     const seenEntities = new Set();
     const dedupedEntities = [];
     for (const ent of entities) {
@@ -308,6 +365,105 @@ class QueryExtractorService {
       ambiguity,
       reason
     };
+  }
+
+  /**
+   * Helper: Normalizes floor level expressions to an integer.
+   * @private
+   */
+  _normalizeFloor(cleanText) {
+    if (/\b(ground\s+floor|ground\s+level|floor\s+0)\b/i.test(cleanText)) return 0;
+    if (/\b(first\s+floor|1st\s+floor|floor\s+1)\b/i.test(cleanText)) return 1;
+    if (/\b(second\s+floor|2nd\s+floor|floor\s+2)\b/i.test(cleanText)) return 2;
+    if (/\b(third\s+floor|3rd\s+floor|floor\s+3)\b/i.test(cleanText)) return 3;
+    if (/\b(fourth\s+floor|4th\s+floor|floor\s+4)\b/i.test(cleanText)) return 4;
+    if (/\b(fifth\s+floor|5th\s+floor|floor\s+5)\b/i.test(cleanText)) return 5;
+    if (/\b(basement)\b/i.test(cleanText)) return -1;
+    return null;
+  }
+
+  /**
+   * Helper: Normalizes capacity threshold expressions to an integer.
+   * @private
+   */
+  _normalizeCapacity(cleanText) {
+    const match1 = cleanText.match(/\b(?:capacity\s*(?:above|over|exceeding|greater\s+than|at\s+least|of\s+at\s+least|more\s+than|>=?|>)\s*(\d+))\b/i);
+    if (match1) return parseInt(match1[1], 10);
+
+    const match2 = cleanText.match(/\b(?:more\s+than|over|above|at\s+least)\s+(\d+)\s*(?:seats|people|students|capacity)\b/i);
+    if (match2) return parseInt(match2[1], 10);
+
+    const match3 = cleanText.match(/\b(\d+)\s*\+\s*(?:seats|capacity|people|students)\b/i);
+    if (match3) return parseInt(match3[1], 10);
+
+    return null;
+  }
+
+  /**
+   * Helper: Normalizes category keywords and synonyms.
+   * @private
+   */
+  _normalizeCategory(cleanText) {
+    if (/\b(restroom|restrooms|washroom|washrooms|toilet|toilets|lavatory|lavatories|wc)\b/i.test(cleanText)) {
+      return 'restroom';
+    }
+    if (/\b(elevator|elevators|lift|lifts)\b/i.test(cleanText)) {
+      return 'elevator';
+    }
+    if (/\b(lab|labs|laboratory|laboratories|computer\s+lab|software\s+lab|ai\s+lab|hardware\s+lab)\b/i.test(cleanText)) {
+      return 'laboratory';
+    }
+    if (/\b(entrance|entrances|entry|entries|main\s+door|gate)\b/i.test(cleanText)) {
+      return 'entrance';
+    }
+    if (/\b(stair|stairs|staircase|staircases|stairway|stairways|steps)\b/i.test(cleanText)) {
+      return 'stairs';
+    }
+    if (/\b(classroom|classrooms|lecture\s+hall|lecture\s+room|seminar\s+hall)\b/i.test(cleanText)) {
+      return 'classroom';
+    }
+    if (/\b(emergency\s+exit|emergency\s+exits|fire\s+exit|fire\s+exits|evacuation\s+door|fire\s+door)\b/i.test(cleanText)) {
+      return 'emergency_exit';
+    }
+    return null;
+  }
+
+  /**
+   * Helper: Normalizes department names and abbreviations.
+   * @private
+   */
+  _normalizeDepartment(cleanText) {
+    if (/\b(cse|computer\s+engineering|computer\s+science|comp\s+eng)\b/i.test(cleanText)) {
+      return 'Computer Engineering';
+    }
+    if (/\b(it|information\s+technology|info\s+tech)\b/i.test(cleanText)) {
+      return 'Information Technology';
+    }
+    if (/\b(admin|administration|administrative)\b/i.test(cleanText)) {
+      return 'Administration';
+    }
+    if (/\b(safety|safety\s+and\s+facilities|safety\s+&\s+facilities)\b/i.test(cleanText)) {
+      return 'Safety & Facilities';
+    }
+    return null;
+  }
+
+  /**
+   * Helper: Extracts room identifiers (e.g. "Room 204", "A-204", "Room 101").
+   * Avoids bare word "room" without a room number or code.
+   * @private
+   */
+  _normalizeRoomIdentifier(cleanText) {
+    const match1 = cleanText.match(/\b(?:room|rm|classroom|hall)\s+([a-z]?\d{1,4}[a-z]?|[a-z]-\d{1,4})\b/i);
+    if (match1) {
+      const code = match1[1].trim();
+      return `Room ${code.toUpperCase()}`;
+    }
+    const match2 = cleanText.match(/\b([a-z]-\d{3,4})\b/i);
+    if (match2) {
+      return `Room ${match2[1].toUpperCase()}`;
+    }
+    return null;
   }
 }
 
