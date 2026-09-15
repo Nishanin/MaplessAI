@@ -244,4 +244,126 @@ describe('POST /api/v1/ai/query — AI Controller', () => {
     expect(typeof response.body.responseMessage).toBe('string');
     expect(response.body.responseMessage.length).toBeGreaterThan(0);
   });
+
+  // ── Phase 2: Dynamic Resolution & Ambiguity Tests ────────────────────
+
+  it('Phase 2: should resolve laboratory query dynamically to lab-101', async () => {
+    const response = await request(app)
+      .post('/api/v1/ai/query')
+      .send({
+        text: 'Where is the nearest lab?',
+        buildingId: 'vit-ce'
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.intent).toBe('FIND_NEAREST');
+    expect(response.body.targetNodeId).toBe('lab-101');
+    assertResponseIsValid(response.body);
+    assertConfidenceInRange(response.body);
+  });
+
+  it('Phase 2: should resolve emergency exit query dynamically to exit-a', async () => {
+    const response = await request(app)
+      .post('/api/v1/ai/query')
+      .send({
+        text: 'Find emergency exit',
+        buildingId: 'vit-ce'
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.intent).toBe('EMERGENCY_EXIT');
+    expect(response.body.targetNodeId).toBe('exit-a');
+    assertResponseIsValid(response.body);
+  });
+
+  it('Phase 2: should resolve elevator query dynamically to lift', async () => {
+    const response = await request(app)
+      .post('/api/v1/ai/query')
+      .send({
+        text: 'Where is the nearest elevator?',
+        buildingId: 'vit-ce'
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.intent).toBe('FIND_NEAREST');
+    expect(response.body.targetNodeId).toBe('lift');
+    assertResponseIsValid(response.body);
+  });
+
+  it('Phase 2: should resolve alias query "Software Lab 1" to lab-101', async () => {
+    const response = await request(app)
+      .post('/api/v1/ai/query')
+      .send({
+        text: 'Where is Software Lab 1?',
+        buildingId: 'vit-ce'
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.targetNodeId).toBe('lab-101');
+    expect(response.body.constraints.alias).toBe('Software Lab 1');
+    assertResponseIsValid(response.body);
+  });
+
+  it('Phase 2: should resolve alias query "Help Desk" to reception', async () => {
+    const response = await request(app)
+      .post('/api/v1/ai/query')
+      .send({
+        text: 'Take me to the Help Desk',
+        buildingId: 'vit-ce'
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.targetNodeId).toBe('reception');
+    expect(response.body.constraints.alias).toBe('Help Desk');
+    assertResponseIsValid(response.body);
+  });
+
+  it('Phase 2: should return safe ambiguity FALLBACK when multiple candidates match', async () => {
+    const response = await request(app)
+      .post('/api/v1/ai/query')
+      .send({
+        text: 'Where is Computer Engineering?',
+        buildingId: 'vit-ce'
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.intent).toBe('FALLBACK');
+    expect(response.body.targetNodeId).toBeNull();
+    expect(response.body.responseMessage).toMatch(/Multiple/i);
+    assertResponseIsValid(response.body);
+    assertConfidenceInRange(response.body);
+  });
+
+  it('Phase 2: should return safe not_found FALLBACK when zero candidates match', async () => {
+    const response = await request(app)
+      .post('/api/v1/ai/query')
+      .send({
+        text: 'Where is the nearest restroom?',
+        buildingId: 'vit-ce'
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.intent).toBe('FALLBACK');
+    expect(response.body.targetNodeId).toBeNull();
+    expect(response.body.responseMessage).toMatch(/No matching location/i);
+    assertResponseIsValid(response.body);
+  });
+
+  it('Phase 2: should return safe not_found when accessibility constraint eliminates candidates', async () => {
+    const response = await request(app)
+      .post('/api/v1/ai/query')
+      .send({
+        text: 'Where is Staircase A?',
+        buildingId: 'vit-ce',
+        userContext: {
+          accessible: true
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.intent).toBe('FALLBACK');
+    expect(response.body.targetNodeId).toBeNull();
+    expect(response.body.constraints.accessible).toBe(true);
+    assertResponseIsValid(response.body);
+  });
 });
