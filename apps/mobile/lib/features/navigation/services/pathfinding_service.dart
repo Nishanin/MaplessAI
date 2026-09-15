@@ -1,13 +1,17 @@
+import '../../../core/errors/exceptions.dart';
 import '../../../core/models/navigation_request_model.dart';
 import '../../../core/models/navigation_response_model.dart';
 import '../domain/spatial_graph.dart';
+import 'dijkstra_engine.dart';
 
-/// Pathfinding Service Interface & Baseline Implementation
+/// Pathfinding Service Interface & Dijkstra Implementation
 /// Owner: Pratik (Spatial Intelligence Domain)
 ///
-/// Full A*, Dijkstra, multi-floor routing, accessibility routing,
-/// and turn instruction generation will be implemented by Pratik
-/// on branch: feature/pratik-spatial-engine
+/// Uses [DijkstraEngine] for weighted shortest-path computation.
+/// Respects NavigationPreferencesModel.avoidBlockedEdges (default: true).
+///
+/// Turn instructions and ETA are NOT implemented in Phase 2.
+/// They will be added in later phases.
 abstract class IPathfindingService {
   Future<NavigationResponseModel> computeRoute(
     SpatialGraph graph,
@@ -16,42 +20,73 @@ abstract class IPathfindingService {
 }
 
 class PathfindingService implements IPathfindingService {
+  final DijkstraEngine _engine;
+
+  PathfindingService({DijkstraEngine? engine})
+      : _engine = engine ?? const DijkstraEngine();
+
   @override
   Future<NavigationResponseModel> computeRoute(
     SpatialGraph graph,
     NavigationRequestModel request,
   ) async {
-    // Stub implementation for initial repository setup
-    // Verifies graph presence and returns baseline path
-    final startNode = graph.getNode(request.startNodeId);
-    final destNode = graph.getNode(request.destinationNodeId);
-
-    if (startNode == null || destNode == null) {
+    // Validate start node exists
+    if (!graph.hasNode(request.startNodeId)) {
       return NavigationResponseModel(
         success: false,
         pathNodeIds: const [],
         totalDistance: 0.0,
         estimatedTimeSeconds: 0.0,
         turnInstructions: const [],
-        message: 'Start or destination node not found in spatial graph',
+        message: "Start node '${request.startNodeId}' not found in spatial graph",
       );
     }
 
-    return NavigationResponseModel(
-      success: true,
-      pathNodeIds: [request.startNodeId, request.destinationNodeId],
-      totalDistance: 15.0,
-      estimatedTimeSeconds: 12.0,
-      turnInstructions: [
-        TurnInstructionModel(
-          step: 1,
-          instruction: 'Proceed from ${startNode.name} to ${destNode.name}',
-          distance: 15.0,
-          bearing: 90.0,
-          nodeId: destNode.id,
-        ),
-      ],
-      message: 'Route calculated (spatial engine stub)',
-    );
+    // Validate destination node exists
+    if (!graph.hasNode(request.destinationNodeId)) {
+      return NavigationResponseModel(
+        success: false,
+        pathNodeIds: const [],
+        totalDistance: 0.0,
+        estimatedTimeSeconds: 0.0,
+        turnInstructions: const [],
+        message: "Destination node '${request.destinationNodeId}' not found in spatial graph",
+      );
+    }
+
+    try {
+      final result = _engine.findShortestPath(
+        graph,
+        request.startNodeId,
+        request.destinationNodeId,
+        skipBlocked: request.preferences.avoidBlockedEdges,
+      );
+
+      if (!result.found) {
+        return NavigationResponseModel(
+          success: false,
+          pathNodeIds: const [],
+          totalDistance: 0.0,
+          estimatedTimeSeconds: 0.0,
+          turnInstructions: const [],
+          message: "No route found from '${request.startNodeId}' to '${request.destinationNodeId}'",
+        );
+      }
+
+      return NavigationResponseModel(
+        success: true,
+        pathNodeIds: result.pathNodeIds,
+        edgeIds: result.pathEdgeIds,
+        totalDistance: result.totalDistance,
+        // ETA placeholder: standard walking speed ~1.2 m/s (Phase 2 stub)
+        estimatedTimeSeconds: result.totalDistance / 1.2,
+        // Turn instructions will be implemented in a later phase
+        turnInstructions: const [],
+        message: 'Route calculated via Dijkstra shortest path',
+      );
+    } on GraphException {
+      rethrow;
+    }
   }
 }
+
