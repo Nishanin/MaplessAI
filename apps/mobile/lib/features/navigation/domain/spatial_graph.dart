@@ -27,7 +27,7 @@ class SpatialGraph {
   int get edgeCount => _adjacencyList.values.fold(0, (sum, list) => sum + list.length);
 
   void clear() {
-    _nodes.clear;
+    _nodes.clear();
     _adjacencyList.clear();
   }
 }
