@@ -1,5 +1,5 @@
 const { validateContract } = require('../../utils/schema_validator');
-const queryExtractorService = require('./query_extractor.service');
+const { getSlmProvider, validateProviderOutput } = require('./slm_provider');
 const semanticGraphService = require('./semantic_graph.service');
 
 /**
@@ -9,7 +9,8 @@ const semanticGraphService = require('./semantic_graph.service');
  * Architecture:
  *   HTTP Request
  *   → Schema Validation (ai-query)
- *   → Query Extractor Service (intent / entity / constraint parsing)
+ *   → SLM Provider abstraction (intent / entity / constraint generation)
+ *   → Provider Output Validation & Sanitization (strict whitelist enforcement)
  *   → Semantic Graph Service (deterministic candidate resolution)
  *   → Schema Validation (ai-response)
  *   → HTTP Response
@@ -17,7 +18,8 @@ const semanticGraphService = require('./semantic_graph.service');
  * CRITICAL SECURITY INVARIANTS:
  * 1. This controller NEVER executes arbitrary SQL or raw database mutations.
  * 2. It coordinates extraction and graph resolution without hardcoded destination IDs.
- * 3. All outgoing responses are strictly validated against contracts/ai-response.schema.json.
+ * 3. targetNodeId is generated EXCLUSIVELY by the SemanticGraphService, never the provider.
+ * 4. All outgoing responses are strictly validated against contracts/ai-response.schema.json.
  */
 
 const CONFIDENCE_THRESHOLD = 0.5;
@@ -61,13 +63,24 @@ class AiController {
 
       const { text, buildingId, userContext } = req.body;
 
-      // ── 2. Structured query extraction ──────────────────────────────────
-      const extracted = queryExtractorService.extractQuery(text, userContext);
+      // ── 2. Query extraction via SLM Provider ────────────────────────────
+      const provider = getSlmProvider();
+      const rawExtraction = await provider.generateStructuredQuery({ text, userContext });
+
+      // ── 3. Strict Provider Output Validation ────────────────────────────
+      const validationResult = validateProviderOutput(rawExtraction);
+      if (!validationResult.valid) {
+        // Malformed provider output is safely handled via fallback
+        const fallback = buildFallbackPayload('Provider extraction output was malformed.', 0.0);
+        return res.status(200).json(fallback);
+      }
+
+      const extracted = validationResult.normalized;
       let { intent, entities, constraints, confidence, ambiguity } = extracted;
       let targetNodeId = null;
       let responseMessage = null;
 
-      // ── 3. Confidence & Ambiguity Gate ──────────────────────────────────
+      // ── 4. Confidence & Ambiguity Gate ──────────────────────────────────
       if (intent === 'FALLBACK' || confidence < CONFIDENCE_THRESHOLD || ambiguity) {
         let fallbackMsg;
         if (ambiguity) {
@@ -87,7 +100,7 @@ class AiController {
         return res.status(200).json(fallback);
       }
 
-      // ── 4. Semantic Graph Candidate Resolution ──────────────────────────
+      // ── 5. Semantic Graph Candidate Resolution ──────────────────────────
       if (Object.keys(constraints).length > 0) {
         const resolution = semanticGraphService.resolveCandidates(constraints);
 
@@ -134,7 +147,7 @@ class AiController {
         }
       }
 
-      // ── 5. Assemble response payload ────────────────────────────────────
+      // ── 6. Assemble response payload ────────────────────────────────────
       const responsePayload = {
         intent,
         entities,
@@ -144,7 +157,7 @@ class AiController {
         responseMessage
       };
 
-      // ── 6. Output validation ────────────────────────────────────────────
+      // ── 7. Output validation ────────────────────────────────────────────
       const outputValidation = validateContract('ai-response', responsePayload);
       if (!outputValidation.valid) {
         return res.status(500).json({
