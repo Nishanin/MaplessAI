@@ -218,7 +218,7 @@ describe('SLM Provider & Validator — Unit Tests', () => {
     });
 
     it('allowed providers list should be strictly controlled', () => {
-      expect(ALLOWED_PROVIDERS).toEqual(['deterministic', 'mock']);
+      expect(ALLOWED_PROVIDERS).toEqual(['deterministic', 'mock', 'local']);
     });
   });
 });

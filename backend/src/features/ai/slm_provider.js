@@ -46,7 +46,7 @@ const ALLOWED_CONSTRAINTS = Object.freeze([
   'capacityMin'
 ]);
 
-const ALLOWED_PROVIDERS = Object.freeze(['deterministic', 'mock']);
+const ALLOWED_PROVIDERS = Object.freeze(['deterministic', 'mock', 'local']);
 
 /**
  * Abstract Base Class for SLM Providers.
@@ -188,9 +188,10 @@ function validateProviderOutput(output) {
  * Provider factory: returns the configured SLM provider instance.
  *
  * @param {string} [requestedProvider] Optional explicit provider name
+ * @param {object} [options] Optional provider initialization options
  * @returns {BaseSlmProvider}
  */
-function getSlmProvider(requestedProvider) {
+function getSlmProvider(requestedProvider, options = {}) {
   const providerName = (requestedProvider || process.env.SLM_PROVIDER || 'deterministic').toLowerCase().trim();
 
   if (!ALLOWED_PROVIDERS.includes(providerName)) {
@@ -201,6 +202,10 @@ function getSlmProvider(requestedProvider) {
   const { MockSlmProvider } = require('./mock_slm_provider');
 
   switch (providerName) {
+    case 'local': {
+      const { LocalSlmProvider } = require('./local_slm_provider');
+      return new LocalSlmProvider(options);
+    }
     case 'mock':
     case 'deterministic':
     default:
