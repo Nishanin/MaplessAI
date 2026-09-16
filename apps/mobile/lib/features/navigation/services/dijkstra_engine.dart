@@ -22,17 +22,24 @@ class DijkstraResult {
   /// 0.0 if [found] is false or start == destination.
   final double totalDistance;
 
+  /// Number of unique nodes expanded (removed from PQ and processed).
+  /// Does not count stale priority-queue entries.
+  /// For start == destination, this is 0 (trivial return, no search).
+  final int nodesExplored;
+
   const DijkstraResult({
     required this.found,
     this.pathNodeIds = const [],
     this.pathEdgeIds = const [],
     this.totalDistance = 0.0,
+    this.nodesExplored = 0,
   });
 
   @override
   String toString() =>
-      'DijkstraResult(found: $found, nodes: ${pathNodeIds.length}, distance: $totalDistance)';
+      'DijkstraResult(found: $found, nodes: ${pathNodeIds.length}, distance: $totalDistance, explored: $nodesExplored)';
 }
+
 
 /// Deterministic weighted Dijkstra shortest-path engine.
 /// Owner: Pratik (Spatial Intelligence Domain)
@@ -115,6 +122,9 @@ class DijkstraEngine {
     // Finalized set: nodes whose shortest distance is confirmed
     final finalized = <String>{};
 
+    // Track nodes explored (unique nodes expanded from PQ)
+    int nodesExplored = 0;
+
     // Lazy priority queue: list of (distance, nodeId) entries sorted on pop.
     // Using a simple binary heap implemented via list operations.
     final pq = _MinHeap();
@@ -132,10 +142,11 @@ class DijkstraEngine {
 
       // Finalize this node
       finalized.add(currentNodeId);
+      nodesExplored++;
 
       // Early termination: destination reached
       if (currentNodeId == destinationNodeId) {
-        return _reconstructPath(startNodeId, destinationNodeId, predecessorEdge, currentDist);
+        return _reconstructPath(startNodeId, destinationNodeId, predecessorEdge, currentDist, nodesExplored);
       }
 
       // Relax outgoing edges
@@ -163,13 +174,15 @@ class DijkstraEngine {
     }
 
     // Priority queue exhausted without reaching destination
-    return const DijkstraResult(
+    return DijkstraResult(
       found: false,
-      pathNodeIds: [],
-      pathEdgeIds: [],
+      pathNodeIds: const [],
+      pathEdgeIds: const [],
       totalDistance: 0.0,
+      nodesExplored: nodesExplored,
     );
   }
+
 
   /// Reconstructs the shortest path from predecessor information.
   DijkstraResult _reconstructPath(
@@ -177,6 +190,7 @@ class DijkstraEngine {
     String destinationNodeId,
     Map<String, EdgeModel> predecessorEdge,
     double totalDistance,
+    int nodesExplored,
   ) {
     final pathNodes = <String>[];
     final pathEdges = <String>[];
@@ -196,8 +210,10 @@ class DijkstraEngine {
       pathNodeIds: pathNodes.reversed.toList(),
       pathEdgeIds: pathEdges.reversed.toList(),
       totalDistance: totalDistance,
+      nodesExplored: nodesExplored,
     );
   }
+
 }
 
 /// A priority queue entry pairing a distance with a node ID.
