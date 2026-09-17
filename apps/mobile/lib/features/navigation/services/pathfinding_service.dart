@@ -4,6 +4,7 @@ import '../../../core/models/navigation_response_model.dart';
 import '../domain/spatial_graph.dart';
 import 'astar_engine.dart';
 import 'dijkstra_engine.dart';
+import 'turn_instruction_generator.dart';
 
 /// Algorithm selection for [PathfindingService].
 ///
@@ -26,11 +27,12 @@ enum NavigationAlgorithm {
 /// validates the engine result for internal consistency, and maps
 /// the domain result to [NavigationResponseModel].
 ///
-/// Responsibilities (Phase 4):
+/// Responsibilities (Phase 4 & 5):
 /// - algorithm selection (Dijkstra or A*)
 /// - request validation (missing nodes)
 /// - path consistency validation before constructing the response
 /// - ETA calculation
+/// - turn instruction generation (Phase 5)
 /// - NavigationResponseModel construction
 ///
 /// Does NOT contain pathfinding logic — that belongs to the engines.
@@ -52,12 +54,17 @@ class PathfindingService implements IPathfindingService {
 
   final DijkstraEngine _dijkstraEngine;
   final AStarEngine _astarEngine;
+  final TurnInstructionGenerator _turnInstructionGenerator;
 
   PathfindingService({
     DijkstraEngine? dijkstraEngine,
     AStarEngine? astarEngine,
+    TurnInstructionGenerator? turnInstructionGenerator,
   })  : _dijkstraEngine = dijkstraEngine ?? const DijkstraEngine(),
-        _astarEngine = astarEngine ?? const AStarEngine();
+        _astarEngine = astarEngine ?? const AStarEngine(),
+        _turnInstructionGenerator =
+            turnInstructionGenerator ?? const TurnInstructionGenerator();
+
 
   @override
   Future<NavigationResponseModel> computeRoute(
@@ -171,6 +178,13 @@ class PathfindingService implements IPathfindingService {
     // For start == destination the engine returns distance 0.0; ETA is 0.
     final eta = totalDistance > 0 ? totalDistance / walkingSpeedMetersPerSecond : 0.0;
 
+    // --- Turn instruction generation ---
+    final turnInstructions = _turnInstructionGenerator.generate(
+      graph: graph,
+      pathNodeIds: pathNodeIds,
+      pathEdgeIds: pathEdgeIds,
+    );
+
     // --- Success response ---
     return NavigationResponseModel(
       success: true,
@@ -178,13 +192,14 @@ class PathfindingService implements IPathfindingService {
       edgeIds: pathEdgeIds,
       totalDistance: totalDistance,
       estimatedTimeSeconds: eta,
-      turnInstructions: const [], // Turn instructions: future phase
+      turnInstructions: turnInstructions,
       message: 'Route calculated via $algorithmLabel',
       routeStatus: RouteStatus.success,
       algorithm: algorithmLabel,
       nodesExplored: nodesExplored,
     );
   }
+
 
   // ---------------------------------------------------------------------------
   // Internal helpers
