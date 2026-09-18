@@ -1,0 +1,347 @@
+{
+  "building": {
+    "id": "vit-ce",
+    "name": "VIT Computer Engineering",
+    "address": "VIT Campus, Upper Indira Nagar, Bibwewadi, Pune, Maharashtra 411037",
+    "category": "college",
+    "latitude": 18.4636,
+    "longitude": 73.8682,
+    "metadata": {
+      "campus": "Pune Main Campus",
+      "departments": [
+        "Computer Engineering",
+        "Information Technology"
+      ]
+    }
+  },
+  "floor": {
+    "id": "floor-1",
+    "buildingId": "vit-ce",
+    "floorNumber": 1,
+    "name": "First Floor",
+    "elevation": 4.0,
+    "metadata": {
+      "wings": ["A-Wing", "B-Wing"]
+    }
+  },
+  "floors": [
+    {
+      "id": "floor-1",
+      "buildingId": "vit-ce",
+      "floorNumber": 1,
+      "name": "First Floor",
+      "elevation": 4.0,
+      "metadata": {
+        "wings": ["A-Wing", "B-Wing"]
+      }
+    },
+    {
+      "id": "floor-2",
+      "buildingId": "vit-ce",
+      "floorNumber": 2,
+      "name": "Second Floor",
+      "elevation": 8.0,
+      "metadata": {
+        "wings": ["A-Wing", "B-Wing"]
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "entrance",
+      "name": "Main Entrance",
+      "category": "entrance",
+      "floorId": "floor-1",
+      "x": 0.0,
+      "y": 15.0,
+      "accessible": true,
+      "metadata": {
+        "isExternal": true,
+        "entryType": "pedestrian"
+      }
+    },
+    {
+      "id": "corridor-f1",
+      "name": "Main Corridor Floor 1",
+      "category": "corridor",
+      "floorId": "floor-1",
+      "x": 20.0,
+      "y": 15.0,
+      "accessible": true,
+      "metadata": {
+        "widthMeters": 3.0
+      }
+    },
+    {
+      "id": "stairs-f1",
+      "name": "Staircase A Floor 1",
+      "category": "stairs",
+      "floorId": "floor-1",
+      "x": 20.0,
+      "y": 0.0,
+      "accessible": false,
+      "metadata": {
+        "stepCount": 24,
+        "connectsFloors": [1, 2]
+      }
+    },
+    {
+      "id": "lift-f1",
+      "name": "Elevator 1 Floor 1",
+      "category": "elevator",
+      "floorId": "floor-1",
+      "x": 10.0,
+      "y": 25.0,
+      "accessible": true,
+      "metadata": {
+        "maxCapacityWeightKg": 1000,
+        "brailleButtons": true,
+        "connectsFloors": [1, 2]
+      }
+    },
+    {
+      "id": "corridor-f2",
+      "name": "Main Corridor Floor 2",
+      "category": "corridor",
+      "floorId": "floor-2",
+      "x": 20.0,
+      "y": 15.0,
+      "accessible": true,
+      "metadata": {
+        "widthMeters": 3.0
+      }
+    },
+    {
+      "id": "stairs-f2",
+      "name": "Staircase A Floor 2",
+      "category": "stairs",
+      "floorId": "floor-2",
+      "x": 20.0,
+      "y": 0.0,
+      "accessible": false,
+      "metadata": {
+        "stepCount": 24,
+        "connectsFloors": [1, 2]
+      }
+    },
+    {
+      "id": "lift-f2",
+      "name": "Elevator 1 Floor 2",
+      "category": "elevator",
+      "floorId": "floor-2",
+      "x": 10.0,
+      "y": 25.0,
+      "accessible": true,
+      "metadata": {
+        "maxCapacityWeightKg": 1000,
+        "brailleButtons": true,
+        "connectsFloors": [1, 2]
+      }
+    },
+    {
+      "id": "lab-201",
+      "name": "Lab 201",
+      "category": "laboratory",
+      "floorId": "floor-2",
+      "x": 20.0,
+      "y": 30.0,
+      "accessible": true,
+      "metadata": {
+        "labName": "Computer Networks Lab",
+        "capacity": 40,
+        "department": "Computer Engineering"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-entrance-corridor1",
+      "startNodeId": "entrance",
+      "endNodeId": "corridor-f1",
+      "distance": 20.0,
+      "bearing": 90.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor1-entrance",
+      "startNodeId": "corridor-f1",
+      "endNodeId": "entrance",
+      "distance": 20.0,
+      "bearing": 270.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor1-stairs1",
+      "startNodeId": "corridor-f1",
+      "endNodeId": "stairs-f1",
+      "distance": 15.0,
+      "bearing": 180.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-stairs1-corridor1",
+      "startNodeId": "stairs-f1",
+      "endNodeId": "corridor-f1",
+      "distance": 15.0,
+      "bearing": 0.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor1-lift1",
+      "startNodeId": "corridor-f1",
+      "endNodeId": "lift-f1",
+      "distance": 15.0,
+      "bearing": 315.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-lift1-corridor1",
+      "startNodeId": "lift-f1",
+      "endNodeId": "corridor-f1",
+      "distance": 15.0,
+      "bearing": 135.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor2-stairs2",
+      "startNodeId": "corridor-f2",
+      "endNodeId": "stairs-f2",
+      "distance": 15.0,
+      "bearing": 180.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-stairs2-corridor2",
+      "startNodeId": "stairs-f2",
+      "endNodeId": "corridor-f2",
+      "distance": 15.0,
+      "bearing": 0.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor2-lift2",
+      "startNodeId": "corridor-f2",
+      "endNodeId": "lift-f2",
+      "distance": 15.0,
+      "bearing": 315.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-lift2-corridor2",
+      "startNodeId": "lift-f2",
+      "endNodeId": "corridor-f2",
+      "distance": 15.0,
+      "bearing": 135.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-corridor2-lab201",
+      "startNodeId": "corridor-f2",
+      "endNodeId": "lab-201",
+      "distance": 15.0,
+      "bearing": 0.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-lab201-corridor2",
+      "startNodeId": "lab-201",
+      "endNodeId": "corridor-f2",
+      "distance": 15.0,
+      "bearing": 180.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": { "surface": "tile" }
+    },
+    {
+      "id": "edge-stairs1-stairs2",
+      "startNodeId": "stairs-f1",
+      "endNodeId": "stairs-f2",
+      "distance": 10.0,
+      "bearing": 0.0,
+      "accessible": false,
+      "blocked": false,
+      "metadata": {
+        "connectorType": "stairs",
+        "flightCount": 2,
+        "description": "Staircase A connecting Floor 1 and Floor 2 (24 steps along inclined run)"
+      }
+    },
+    {
+      "id": "edge-stairs2-stairs1",
+      "startNodeId": "stairs-f2",
+      "endNodeId": "stairs-f1",
+      "distance": 10.0,
+      "bearing": 180.0,
+      "accessible": false,
+      "blocked": false,
+      "metadata": {
+        "connectorType": "stairs",
+        "flightCount": 2,
+        "description": "Staircase A connecting Floor 2 and Floor 1 (24 steps descending)"
+      }
+    },
+    {
+      "id": "edge-lift1-lift2",
+      "startNodeId": "lift-f1",
+      "endNodeId": "lift-f2",
+      "distance": 4.0,
+      "bearing": 0.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": {
+        "connectorType": "elevator",
+        "description": "Elevator 1 shaft vertical travel between Floor 1 and Floor 2 (4m vertical rise)"
+      }
+    },
+    {
+      "id": "edge-lift2-lift1",
+      "startNodeId": "lift-f2",
+      "endNodeId": "lift-f1",
+      "distance": 4.0,
+      "bearing": 0.0,
+      "accessible": true,
+      "blocked": false,
+      "metadata": {
+        "connectorType": "elevator",
+        "description": "Elevator 1 shaft vertical travel between Floor 2 and Floor 1 (4m vertical descent)"
+      }
+    }
+  ],
+  "semanticMetadata": [
+    {
+      "entityId": "lab-201",
+      "entityType": "node",
+      "tags": ["networks", "hardware", "routers", "switches", "cisco"],
+      "aliases": ["Networks Lab", "Hardware Lab 201", "Computer Networks Lab"],
+      "description": "Second floor computer networks and telecommunications lab.",
+      "department": "Computer Engineering",
+      "operationalHours": "08:00 - 18:00",
+      "capacity": 40,
+      "customAttributes": {
+        "airConditioned": true
+      }
+    }
+  ]
+}
