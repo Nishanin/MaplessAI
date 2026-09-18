@@ -1,6 +1,8 @@
 import '../../../core/errors/exceptions.dart';
+import '../../../core/models/edge_model.dart';
 import '../../../core/models/navigation_request_model.dart';
 import '../../../core/models/navigation_response_model.dart';
+import '../../../core/models/node_model.dart';
 import '../domain/spatial_graph.dart';
 import 'astar_engine.dart';
 import 'dijkstra_engine.dart';
@@ -185,6 +187,13 @@ class PathfindingService implements IPathfindingService {
       pathEdgeIds: pathEdgeIds,
     );
 
+    // --- Floor transition generation (Phase 6) ---
+    final floorTransitions = _buildFloorTransitions(
+      graph: graph,
+      pathNodeIds: pathNodeIds,
+      pathEdgeIds: pathEdgeIds,
+    );
+
     // --- Success response ---
     return NavigationResponseModel(
       success: true,
@@ -193,6 +202,7 @@ class PathfindingService implements IPathfindingService {
       totalDistance: totalDistance,
       estimatedTimeSeconds: eta,
       turnInstructions: turnInstructions,
+      floorTransitions: floorTransitions,
       message: 'Route calculated via $algorithmLabel',
       routeStatus: RouteStatus.success,
       algorithm: algorithmLabel,
@@ -281,5 +291,96 @@ class PathfindingService implements IPathfindingService {
     }
 
     return null; // valid
+  }
+
+  /// Extracts multi-floor transition records from a validated route path.
+  ///
+  /// Conforms to contracts/navigation-response.schema.json:
+  /// - [fromFloorId]: ID of origin floor
+  /// - [toFloorId]: ID of destination floor
+  /// - [viaType]: Strictly one of "stairs", "elevator", "ramp"
+  /// - [nodeId]: ID of the arrival node on the destination floor
+  static List<FloorTransitionModel> _buildFloorTransitions({
+    required SpatialGraph graph,
+    required List<String> pathNodeIds,
+    required List<String> pathEdgeIds,
+  }) {
+    final transitions = <FloorTransitionModel>[];
+
+    for (var i = 0; i < pathNodeIds.length - 1; i++) {
+      final fromNode = graph.getNode(pathNodeIds[i])!;
+      final toNode = graph.getNode(pathNodeIds[i + 1])!;
+
+      if (fromNode.floorId != toNode.floorId) {
+        final edge = graph.getEdge(pathEdgeIds[i])!;
+        final viaType = _detectContractViaType(fromNode, toNode, edge);
+
+        transitions.add(
+          FloorTransitionModel(
+            fromFloorId: fromNode.floorId,
+            toFloorId: toNode.floorId,
+            viaType: viaType,
+            nodeId: toNode.id,
+          ),
+        );
+      }
+    }
+
+    return transitions;
+  }
+
+  static Set<String> _extractCategoryTokens(NodeModel node) {
+    final cat = node.category.trim().toLowerCase();
+    if (cat.isEmpty) return const {};
+    return cat.split(RegExp(r'[^a-z0-9]+')).where((t) => t.isNotEmpty).toSet();
+  }
+
+  /// Determines the contract-compliant [viaType] ('stairs', 'elevator', 'ramp').
+  ///
+  /// Strictly adheres to contracts/navigation-response.schema.json enum values.
+  /// Does NOT emit 'lift' into structured contract data.
+  /// Throws [GraphException] if the connector type cannot be determined.
+  static String _detectContractViaType(
+    NodeModel from,
+    NodeModel to,
+    EdgeModel edge,
+  ) {
+    final tokensFrom = _extractCategoryTokens(from);
+    final tokensTo = _extractCategoryTokens(to);
+    final allTokens = {...tokensFrom, ...tokensTo};
+
+    // Also inspect edge metadata if specified
+    final edgeVia = edge.metadata['viaType']?.toString().toLowerCase() ??
+        edge.metadata['connectorType']?.toString().toLowerCase();
+    if (edgeVia != null) {
+      final edgeTokens =
+          edgeVia.split(RegExp(r'[^a-z0-9]+')).where((t) => t.isNotEmpty);
+      allTokens.addAll(edgeTokens);
+    }
+
+    if (allTokens.contains('lift') ||
+        allTokens.contains('elevator') ||
+        allTokens.contains('elevators') ||
+        allTokens.contains('lifts')) {
+      return 'elevator';
+    }
+    if (allTokens.contains('ramp') || allTokens.contains('ramps')) {
+      return 'ramp';
+    }
+    if (allTokens.contains('stairs') ||
+        allTokens.contains('staircase') ||
+        allTokens.contains('stair') ||
+        allTokens.contains('stairwell') ||
+        allTokens.contains('stairway')) {
+      return 'stairs';
+    }
+
+    throw GraphException(
+      "Cannot determine valid viaType ('stairs', 'elevator', 'ramp') for floor "
+      "transition from '${from.id}' (${from.floorId}) to '${to.id}' (${to.floorId}). "
+      "Neither node categories ('${from.category}', '${to.category}') nor edge "
+      "metadata specify a recognized vertical connector type.",
+      code: 'UNKNOWN_FLOOR_TRANSITION_TYPE',
+    );
   }
 }
