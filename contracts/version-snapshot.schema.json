@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VersionSnapshot",
+  "description": "Schema for an immutable map snapshot representing a building spatial and semantic graph",
+  "type": "object",
+  "required": ["buildingId", "nodes", "edges"],
+  "properties": {
+    "buildingId": {
+      "type": "string",
+      "description": "Building identifier this snapshot belongs to"
+    },
+    "building": {
+      "type": "object",
+      "description": "Building entity details at snapshot time"
+    },
+    "floors": {
+      "type": "array",
+      "items": { "type": "object" },
+      "description": "All floors in the building"
+    },
+    "floor": {
+      "type": "object",
+      "description": "Primary or single floor entity if applicable"
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "type": "object" },
+      "description": "All spatial graph nodes at snapshot time"
+    },
+    "edges": {
+      "type": "array",
+      "items": { "type": "object" },
+      "description": "All spatial graph edges at snapshot time"
+    },
+    "semanticMetadata": {
+      "type": "array",
+      "items": { "type": "object" },
+      "description": "All semantic metadata annotations associated with the entities at snapshot time"
+    }
+  },
+  "additionalProperties": true
+}

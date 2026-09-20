@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VersionDiff",
+  "description": "Schema for graph differences between two version snapshots in MapLess AI",
+  "type": "object",
+  "required": ["buildingId", "baseVersion", "targetVersion", "diff"],
+  "properties": {
+    "buildingId": {
+      "type": "string",
+      "description": "Identifier of the building being compared"
+    },
+    "baseVersion": {
+      "type": "integer",
+      "description": "Origin/base version number"
+    },
+    "targetVersion": {
+      "type": "integer",
+      "description": "Target/comparator version number"
+    },
+    "diff": {
+      "type": "object",
+      "required": [
+        "nodesAdded", "nodesRemoved", "nodesModified",
+        "edgesAdded", "edgesRemoved", "edgesModified"
+      ],
+      "properties": {
+        "nodesAdded": { "type": "array" },
+        "nodesRemoved": { "type": "array" },
+        "nodesModified": { "type": "array" },
+        "edgesAdded": { "type": "array" },
+        "edgesRemoved": { "type": "array" },
+        "edgesModified": { "type": "array" },
+        "floorsAdded": { "type": "array" },
+        "floorsRemoved": { "type": "array" },
+        "floorsModified": { "type": "array" },
+        "semanticMetadataAdded": { "type": "array" },
+        "semanticMetadataRemoved": { "type": "array" },
+        "semanticMetadataModified": { "type": "array" },
+        "summary": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "message": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

@@ -7,12 +7,14 @@ class VersioningState {
   final List<VersionSnapshot> history;
   final String? errorMessage;
   final String? statusMessage;
+  final Map<String, dynamic>? activeDiff;
 
   const VersioningState({
     this.isLoading = false,
     this.history = const [],
     this.errorMessage,
     this.statusMessage,
+    this.activeDiff,
   });
 
   VersioningState copyWith({
@@ -20,12 +22,14 @@ class VersioningState {
     List<VersionSnapshot>? history,
     String? errorMessage,
     String? statusMessage,
+    Map<String, dynamic>? activeDiff,
   }) {
     return VersioningState(
       isLoading: isLoading ?? this.isLoading,
       history: history ?? this.history,
       errorMessage: errorMessage,
       statusMessage: statusMessage,
+      activeDiff: activeDiff ?? this.activeDiff,
     );
   }
 }
@@ -59,10 +63,50 @@ class VersioningController extends StateNotifier<VersioningState> {
       state = state.copyWith(
         isLoading: false,
         history: [snapshot, ...state.history],
-        statusMessage: 'Snapshot v${snapshot.versionNumber} created',
+        statusMessage: 'Snapshot v created',
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
+    }
+  }
+
+  Future<bool> rollback(
+    String buildingId,
+    int targetVersion,
+    String author,
+  ) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final success = await _service.rollbackVersion(buildingId, targetVersion, author);
+      if (success) {
+        await fetchHistory(buildingId);
+        state = state.copyWith(
+          isLoading: false,
+          statusMessage: 'Rolled back to v',
+        );
+        return true;
+      }
+      state = state.copyWith(isLoading: false, errorMessage: 'Rollback failed');
+      return false;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> compare(
+    String buildingId,
+    int baseVersion,
+    int targetVersion,
+  ) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final diff = await _service.compareVersions(buildingId, baseVersion, targetVersion);
+      state = state.copyWith(isLoading: false, activeDiff: diff);
+      return diff;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      return null;
     }
   }
 }
