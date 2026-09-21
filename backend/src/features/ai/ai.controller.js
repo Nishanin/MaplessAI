@@ -2,6 +2,7 @@ const { validateContract } = require('../../utils/schema_validator');
 const { getSlmProvider, validateProviderOutput } = require('./slm_provider');
 const semanticGraphService = require('./semantic_graph.service');
 const graphQueryGeneratorService = require('./graph_query_generator.service');
+const navigationRequestService = require('./navigation_request.service');
 
 /**
  * AI & Semantic Knowledge Graph Controller (Owner: Surabhi)
@@ -15,6 +16,7 @@ const graphQueryGeneratorService = require('./graph_query_generator.service');
  *   → Graph Query Generation (controlled read-only query descriptor)
  *   → Confidence & Ambiguity Gate
  *   → Semantic Graph Service (deterministic candidate resolution)
+ *   → NavigationRequest Construction (validated semantic-to-spatial handoff)
  *   → Schema Validation (ai-response)
  *   → HTTP Response
  *
@@ -22,7 +24,8 @@ const graphQueryGeneratorService = require('./graph_query_generator.service');
  * 1. This controller NEVER executes arbitrary SQL or raw database mutations.
  * 2. It coordinates extraction and graph resolution without hardcoded destination IDs.
  * 3. targetNodeId is generated EXCLUSIVELY by the SemanticGraphService, never the provider.
- * 4. All outgoing responses are strictly validated against contracts/ai-response.schema.json.
+ * 4. NavigationRequest is produced ONLY for resolved navigation intents, NEVER for lookups/fallback.
+ * 5. All outgoing responses are strictly validated against contracts/ai-response.schema.json.
  */
 
 const CONFIDENCE_THRESHOLD = 0.5;
@@ -45,7 +48,8 @@ function buildFallbackPayload(customMessage, customConfidence = 0.0, constraints
     responseMessage:
       customMessage ||
       'I could not understand that request. Please rephrase — ' +
-      'you can ask me to find rooms, labs, elevators, or emergency exits.'
+      'you can ask me to find rooms, labs, elevators, or emergency exits.',
+    navigationRequest: null
   };
 }
 
@@ -117,6 +121,8 @@ class AiController {
       }
 
       // ── 6. Semantic Graph Candidate Resolution ──────────────────────────
+      let navigationRequest = null;
+
       if (Object.keys(graphQuery.filters).length > 0) {
         const resolution = semanticGraphService.resolveCandidates(graphQuery.filters);
 
@@ -124,6 +130,23 @@ class AiController {
           // Exactly one match found
           targetNodeId = resolution.candidateIds[0];
           const candidate = resolution.candidates[0];
+
+          // ── 7. NavigationRequest Construction (semantic-to-spatial handoff)
+          // NavigationRequest is produced ONLY for resolved navigation intents (NAVIGATE_TO, FIND_NEAREST, EMERGENCY_EXIT).
+          // Lookups (LOCATE_ROOM, QUERY_INFO) and ambiguous/fallback queries NEVER produce a NavigationRequest.
+          if (navigationRequestService.NAVIGATION_INTENTS.includes(intent)) {
+            try {
+              navigationRequest = navigationRequestService.buildNavigationRequest({
+                graphQuery,
+                resolution,
+                buildingId,
+                userContext,
+                intent
+              });
+            } catch (navErr) {
+              navigationRequest = null;
+            }
+          }
 
           if (intent === 'EMERGENCY_EXIT') {
             responseMessage = `Emergency exit located (${candidate.name}). Please follow the highlighted route.`;
@@ -163,17 +186,18 @@ class AiController {
         }
       }
 
-      // ── 6. Assemble response payload ────────────────────────────────────
+      // ── 8. Assemble response payload ────────────────────────────────────
       const responsePayload = {
         intent,
         entities,
         constraints,
         targetNodeId,
         confidence,
-        responseMessage
+        responseMessage,
+        navigationRequest: navigationRequest || null
       };
 
-      // ── 7. Output validation ────────────────────────────────────────────
+      // ── 9. Output validation ────────────────────────────────────────────
       const outputValidation = validateContract('ai-response', responsePayload);
       if (!outputValidation.valid) {
         return res.status(500).json({

@@ -33,6 +33,13 @@ const ALLOWED_CONSTRAINTS = Object.freeze([
   'capacityMin'
 ]);
 
+const RESOLUTION_STATES = Object.freeze({
+  RESOLVED: 'RESOLVED',
+  AMBIGUOUS: 'AMBIGUOUS',
+  NOT_FOUND: 'NOT_FOUND',
+  FALLBACK: 'FALLBACK'
+});
+
 /**
  * Safely clones a normalized node object to prevent external mutations.
  * @param {object} node
@@ -242,14 +249,18 @@ class SemanticGraphService {
 
     const matchCount = matchingNodes.length;
     let status = 'not_found';
+    let resolutionState = RESOLUTION_STATES.NOT_FOUND;
     if (matchCount === 1) {
       status = 'resolved';
+      resolutionState = RESOLUTION_STATES.RESOLVED;
     } else if (matchCount > 1) {
       status = 'ambiguous';
+      resolutionState = RESOLUTION_STATES.AMBIGUOUS;
     }
 
     return {
       status,
+      resolutionState,
       matchCount,
       candidateIds: matchingNodes.map(n => n.id),
       candidates: matchingNodes
@@ -438,5 +449,6 @@ class SemanticGraphService {
 const defaultInstance = new SemanticGraphService();
 defaultInstance.SemanticGraphService = SemanticGraphService;
 defaultInstance.ALLOWED_CONSTRAINTS = ALLOWED_CONSTRAINTS;
+defaultInstance.RESOLUTION_STATES = RESOLUTION_STATES;
 
 module.exports = defaultInstance;
