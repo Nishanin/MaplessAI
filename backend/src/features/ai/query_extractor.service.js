@@ -57,7 +57,7 @@ class QueryExtractorService {
       };
     }
 
-    // ── Security Check: Reject SQL injection and script patterns ────────────
+    // ── Security Check: Reject SQL injection, script, prompt-injection, and shell patterns ────────────
     const MALICIOUS_PATTERNS = [
       /\b(select\s+.+\s+from)\b/i,
       /\b(union\s+(all\s+)?select)\b/i,
@@ -66,7 +66,11 @@ class QueryExtractorService {
       /\b(delete\s+from)\b/i,
       /--/,
       /<script\b[^>]*>/i,
-      /javascript:/i
+      /javascript:/i,
+      /\b(ignore\s+(all\s+)?(previous\s+)?instructions|system\s+prompt|system\s+instructions)\b/i,
+      /\b(rm\s+-rf|chmod\s+|sh\s+-c|bash\s+-c|curl\s+|wget\s+)\b/i,
+      /\b(https?:\/\/|ftp:\/\/|file:\/\/)\b/i,
+      /\b(destinationNodeId|targetNodeId)\s*=/i
     ];
     if (MALICIOUS_PATTERNS.some(p => p.test(text))) {
       return {
@@ -79,7 +83,9 @@ class QueryExtractorService {
       };
     }
 
-    const rawLower = text.toLowerCase();
+    // Safe length bounding to prevent regex exhaustion / ReDoS
+    const boundedText = text.length > 1000 ? text.slice(0, 1000) : text;
+    const rawLower = boundedText.toLowerCase();
     const cleanText = rawLower.replace(/[^\w\s+-]/g, ' ').replace(/\s+/g, ' ').trim();
 
     let intent = null;
@@ -139,15 +145,15 @@ class QueryExtractorService {
     const detectedCategory = this._normalizeCategory(cleanText);
 
     // F. Department Synonyms & Graph Lookups
-    const detectedDepartment = this._normalizeDepartment(cleanText) || semanticGraphService.findDepartmentInText(text);
+    const detectedDepartment = this._normalizeDepartment(cleanText) || semanticGraphService.findDepartmentInText(boundedText);
     if (detectedDepartment) {
       rawConstraints.department = detectedDepartment;
       entities.push({ type: 'department', value: detectedDepartment });
     }
 
     // G. Room Identifier / Name / Alias Normalization
-    const matchedAlias = semanticGraphService.findAliasInText(text);
-    const matchedName = semanticGraphService.findNameInText(text);
+    const matchedAlias = semanticGraphService.findAliasInText(boundedText);
+    const matchedName = semanticGraphService.findNameInText(boundedText);
     const roomIdentifier = this._normalizeRoomIdentifier(cleanText);
 
     // Specific AI Lab tag recognition (e.g. "AI lab" matches tag 'ai' on lab-101)
@@ -159,7 +165,9 @@ class QueryExtractorService {
       entities.push({ type: 'alias', value: 'AI Lab' });
     }
 
-    // ── 2. Conflicting / Contradictory Categories Check ─────────────────────
+    // ── 2. Conflicting / Contradictory Constraints Check ────────────────────
+
+    // A. Conflicting Categories
     const conflictingCategories = [];
     if (/\b(lab|labs|laboratory|laboratories)\b/i.test(cleanText)) conflictingCategories.push('laboratory');
     if (/\b(exit|exits|emergency|evacuat\w*)\b/i.test(cleanText)) conflictingCategories.push('emergency_exit');
@@ -177,6 +185,75 @@ class QueryExtractorService {
       };
     }
 
+    // B. Conflicting Floors
+    const detectedFloors = new Set();
+    if (/\b(ground\s+floor|ground\s+level|floor\s+0)\b/i.test(cleanText)) detectedFloors.add(0);
+    if (/\b(first\s+floor|1st\s+floor|floor\s+1)\b/i.test(cleanText)) detectedFloors.add(1);
+    if (/\b(second\s+floor|2nd\s+floor|floor\s+2)\b/i.test(cleanText)) detectedFloors.add(2);
+    if (/\b(third\s+floor|3rd\s+floor|floor\s+3)\b/i.test(cleanText)) detectedFloors.add(3);
+    if (/\b(fourth\s+floor|4th\s+floor|floor\s+4)\b/i.test(cleanText)) detectedFloors.add(4);
+    if (/\b(fifth\s+floor|5th\s+floor|floor\s+5)\b/i.test(cleanText)) detectedFloors.add(5);
+    if (/\b(basement)\b/i.test(cleanText)) detectedFloors.add(-1);
+
+    if (detectedFloors.size > 1) {
+      return {
+        intent: 'FALLBACK',
+        entities: Array.from(detectedFloors).map(f => ({ type: 'floor', value: String(f) })),
+        constraints: {},
+        confidence: 0.30,
+        ambiguity: true,
+        reason: 'contradictory or multiple conflicting floor constraints in query'
+      };
+    }
+
+    // C. Conflicting Accessibility Requirements
+    const wantsAccessible = /\b(accessible|wheelchair|handicap|step-free|stepfree|barrier-free|ramp)\b/i.test(cleanText) || (userContext && userContext.accessible === true);
+    const wantsInaccessible = /\b(not\s+accessible|inaccessible|stairs\s+only|no\s+wheelchair|no\s+accessible|no\s+ramp)\b/i.test(cleanText);
+    if (wantsAccessible && wantsInaccessible) {
+      return {
+        intent: 'FALLBACK',
+        entities: [{ type: 'accessibility', value: 'conflict' }],
+        constraints: {},
+        confidence: 0.30,
+        ambiguity: true,
+        reason: 'contradictory accessibility constraints in query'
+      };
+    }
+
+    // D. Conflicting Distinct Room Identifiers
+    const roomMatches = [...cleanText.matchAll(/\b(?:room|rm|classroom|hall)\s+([a-z]?\d{1,4}[a-z]?|[a-z]-\d{1,4})\b/gi)];
+    const uniqueRoomCodes = new Set(roomMatches.map(m => m[1].toUpperCase()));
+    if (uniqueRoomCodes.size > 1) {
+      return {
+        intent: 'FALLBACK',
+        entities: Array.from(uniqueRoomCodes).map(r => ({ type: 'room_name', value: `Room ${r}` })),
+        constraints: {},
+        confidence: 0.30,
+        ambiguity: true,
+        reason: 'contradictory or multiple conflicting room targets in query'
+      };
+    }
+
+    // E. Conflicting Capacity Thresholds (e.g. min capacity exceeding max capacity)
+    const minCapMatch = cleanText.match(/\b(?:capacity\s*(?:above|over|exceeding|greater\s+than|at\s+least|of\s+at\s+least|more\s+than|>=?|>)\s*(\d+))\b/i) ||
+      cleanText.match(/\b(?:more\s+than|over|above|at\s+least)\s+(\d+)\s*(?:seats|people|students|capacity)\b/i);
+    const maxCapMatch = cleanText.match(/\b(?:capacity\s*(?:under|below|less\s+than|at\s+most|<=?|<)\s*(\d+))\b/i) ||
+      cleanText.match(/\b(?:less\s+than|under|below|at\s+most)\s+(\d+)\b/i);
+    if (minCapMatch && maxCapMatch) {
+      const minVal = parseInt(minCapMatch[1], 10);
+      const maxVal = parseInt(maxCapMatch[1], 10);
+      if (minVal > maxVal) {
+        return {
+          intent: 'FALLBACK',
+          entities: [{ type: 'facility', value: `capacityConflict:${minVal}>${maxVal}` }],
+          constraints: {},
+          confidence: 0.30,
+          ambiguity: true,
+          reason: 'contradictory capacity range constraints in query'
+        };
+      }
+    }
+
     // ── 3. Intent Determination Logic ───────────────────────────────────────
 
     // Pattern A: Emergency Exit / Evacuation
@@ -189,29 +266,34 @@ class QueryExtractorService {
     }
     // Pattern B: Nearest / Closest / Nearby Facility
     else if (/\b(nearest|closest|nearby)\b/i.test(cleanText)) {
+      intent = 'FIND_NEAREST';
       if (detectedCategory) {
-        intent = 'FIND_NEAREST';
         entities.push({ type: 'category', value: detectedCategory });
         rawConstraints.category = detectedCategory;
         confidence = 0.90;
-        reason = `recognized nearest request for category: ${detectedCategory}`;
+        reason = `recognized nearest ${detectedCategory} request`;
       } else if (matchedAlias) {
-        intent = 'FIND_NEAREST';
         entities.push({ type: 'alias', value: matchedAlias });
         rawConstraints.alias = matchedAlias;
-        confidence = 0.85;
+        confidence = 0.90;
         reason = 'recognized nearest destination by alias';
       } else if (matchedName) {
-        intent = 'FIND_NEAREST';
         entities.push({ type: 'room_name', value: matchedName });
         rawConstraints.name = matchedName;
-        confidence = 0.85;
+        confidence = 0.90;
         reason = 'recognized nearest destination by room name';
-      } else if (rawConstraints.facility) {
-        intent = 'FIND_NEAREST';
+      } else if (roomIdentifier) {
+        entities.push({ type: 'room_name', value: roomIdentifier });
+        rawConstraints.name = roomIdentifier;
         confidence = 0.85;
-        reason = `recognized nearest request for facility: ${rawConstraints.facility}`;
+        reason = `recognized nearest request for room: ${roomIdentifier}`;
+      } else if (/\b(library)\b/i.test(cleanText)) {
+        entities.push({ type: 'category', value: 'facility' });
+        rawConstraints.name = 'Department Library';
+        confidence = 0.85;
+        reason = 'recognized nearest request for library';
       } else {
+        // "nearest" keyword present but destination missing
         intent = 'FALLBACK';
         confidence = 0.30;
         ambiguity = true;
@@ -270,6 +352,14 @@ class QueryExtractorService {
       if (matchedName) {
         rawConstraints.name = matchedName;
         entities.push({ type: 'room_name', value: matchedName });
+      }
+      if (matchedAlias) {
+        rawConstraints.alias = matchedAlias;
+        entities.push({ type: 'alias', value: matchedAlias });
+      }
+      if (/\b(library)\b/i.test(cleanText)) {
+        rawConstraints.name = 'Department Library';
+        entities.push({ type: 'room_name', value: 'Department Library' });
       }
       reason = 'recognized facility or operational info query';
     }

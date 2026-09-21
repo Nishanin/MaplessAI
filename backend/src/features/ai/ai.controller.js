@@ -1,5 +1,5 @@
 const { validateContract } = require('../../utils/schema_validator');
-const { getSlmProvider, validateProviderOutput } = require('./slm_provider');
+const slmProviderModule = require('./slm_provider');
 const semanticGraphService = require('./semantic_graph.service');
 const graphQueryGeneratorService = require('./graph_query_generator.service');
 const navigationRequestService = require('./navigation_request.service');
@@ -57,6 +57,15 @@ class AiController {
   async processQuery(req, res, next) {
     try {
       // ── 1. Input validation ─────────────────────────────────────────────
+      if (req.body && req.body.text !== undefined && typeof req.body.text !== 'string') {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_FAILED',
+            message: 'Invalid AiQuery schema: text must be a string'
+          }
+        });
+      }
+
       const inputValidation = validateContract('ai-query', req.body);
       if (!inputValidation.valid) {
         return res.status(400).json({
@@ -70,12 +79,28 @@ class AiController {
 
       const { text, buildingId, userContext } = req.body;
 
-      // ── 2. Query extraction via SLM Provider ────────────────────────────
-      const provider = getSlmProvider();
-      const rawExtraction = await provider.generateStructuredQuery({ text, userContext });
+      // ── 1b. Maximum query length defense ────────────────────────────────
+      if (typeof text === 'string' && text.length > 1000) {
+        return res.status(400).json({
+          error: {
+            code: 'QUERY_TOO_LONG',
+            message: 'Query text exceeds maximum allowed length of 1000 characters.'
+          }
+        });
+      }
+
+      // ── 2. Query extraction via SLM Provider (with error isolation) ─────
+      let rawExtraction;
+      try {
+        const provider = slmProviderModule.getSlmProvider();
+        rawExtraction = await provider.generateStructuredQuery({ text, userContext });
+      } catch (providerErr) {
+        const fallback = buildFallbackPayload('AI extraction service temporarily unavailable.', 0.0);
+        return res.status(200).json(fallback);
+      }
 
       // ── 3. Strict Provider Output Validation ────────────────────────────
-      const validationResult = validateProviderOutput(rawExtraction);
+      const validationResult = slmProviderModule.validateProviderOutput(rawExtraction);
       if (!validationResult.valid) {
         // Malformed provider output is safely handled via fallback
         const fallback = buildFallbackPayload('Provider extraction output was malformed.', 0.0);
@@ -106,7 +131,7 @@ class AiController {
         if (graphQuery.ambiguity) {
           fallbackMsg = 'Your request is ambiguous or conflicting. Please specify a single room, lab, elevator, or emergency exit.';
         }
-        const fallback = buildFallbackPayload(fallbackMsg, graphQuery.confidence, graphQuery.filters);
+        const fallback = buildFallbackPayload(fallbackMsg, Math.min(graphQuery.confidence, CONFIDENCE_THRESHOLD), graphQuery.filters);
         const fallbackValidation = validateContract('ai-response', fallback);
         if (!fallbackValidation.valid) {
           return res.status(500).json({
@@ -120,16 +145,25 @@ class AiController {
         return res.status(200).json(fallback);
       }
 
-      // ── 6. Semantic Graph Candidate Resolution ──────────────────────────
+      // ── 6. Semantic Graph Candidate Resolution (with error isolation) ───
       let navigationRequest = null;
 
       if (Object.keys(graphQuery.filters).length > 0) {
-        const resolution = semanticGraphService.resolveCandidates(graphQuery.filters);
+        let resolution;
+        try {
+          resolution = semanticGraphService.resolveCandidates(graphQuery.filters);
+        } catch (graphErr) {
+          const fallback = buildFallbackPayload('Semantic graph candidate resolution failed.', 0.0);
+          return res.status(200).json(fallback);
+        }
 
         if (resolution.status === 'resolved') {
           // Exactly one match found
           targetNodeId = resolution.candidateIds[0];
           const candidate = resolution.candidates[0];
+
+          // Confidence monotonicity: downstream confidence never exceeds graphQuery or extracted confidence
+          confidence = Math.min(graphQuery.confidence, extracted.confidence);
 
           // ── 7. NavigationRequest Construction (semantic-to-spatial handoff)
           // NavigationRequest is produced ONLY for resolved navigation intents (NAVIGATE_TO, FIND_NEAREST, EMERGENCY_EXIT).
@@ -165,7 +199,9 @@ class AiController {
           // Multiple matches: safe ambiguity fallback
           intent = 'FALLBACK';
           targetNodeId = null;
-          confidence = 0.50;
+          // Confidence monotonicity: ambiguous resolution cannot exceed 0.5 or graphQuery confidence
+          confidence = Math.min(graphQuery.confidence, 0.50);
+          navigationRequest = null;
           const candidateNames = resolution.candidates.map(c => c.name).join(', ');
           responseMessage = `Multiple matching locations found (${candidateNames}). Please specify which one you are looking for.`;
         } else {
@@ -173,6 +209,7 @@ class AiController {
           intent = 'FALLBACK';
           targetNodeId = null;
           confidence = 0.0;
+          navigationRequest = null;
           responseMessage = 'No matching location found for the specified criteria. Please rephrase or check the building map.';
         }
       } else {

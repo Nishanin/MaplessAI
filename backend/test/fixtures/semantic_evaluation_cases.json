@@ -812,5 +812,75 @@
       "targetNodeId": null,
       "requiresNavigationRequest": false
     }
+  },
+  {
+    "id": "contradiction-floors-001",
+    "category": "contradiction",
+    "query": "Find the lab on floor 1 and floor 2",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "contradiction-rooms-001",
+    "category": "contradiction",
+    "query": "Take me to room 101 and room 204",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "contradiction-access-001",
+    "category": "contradiction",
+    "query": "Wheelchair accessible entrance stairs only",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "contradiction-capacity-001",
+    "category": "contradiction",
+    "query": "Room with capacity over 100 but under 20",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "ambiguity-that-room-001",
+    "category": "ambiguity",
+    "query": "that room",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
   }
 ]

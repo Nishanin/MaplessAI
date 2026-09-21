@@ -247,6 +247,9 @@ class SemanticGraphService {
       }
     }
 
+    // Deterministic ordering: sort by node ID to ensure idempotency across runs
+    matchingNodes.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
     const matchCount = matchingNodes.length;
     let status = 'not_found';
     let resolutionState = RESOLUTION_STATES.NOT_FOUND;
@@ -269,19 +272,26 @@ class SemanticGraphService {
 
   /**
    * Evaluates if a node satisfies ALL active constraints simultaneously (AND logic).
+   * Defensively guards against corrupted, incomplete, or missing node metadata.
    * @private
    */
   _matchesConstraints(node, constraints) {
+    if (!node || typeof node !== 'object') return false;
+
     // 1. exact nodeId
     if (constraints.nodeId !== undefined) {
       const targetId = String(constraints.nodeId).trim();
-      if (node.id !== targetId) return false;
+      if (String(node.id || '').trim() !== targetId) return false;
     }
+
+    const nodeNameLower = typeof node.name === 'string' ? node.name.toLowerCase() : '';
+    const nodeCategoryLower = typeof node.category === 'string' ? node.category.toLowerCase() : '';
+    const nodeAliases = Array.isArray(node.aliases) ? node.aliases : [];
+    const nodeTags = Array.isArray(node.tags) ? node.tags : [];
 
     // 2. case-insensitive name match (exact or substring)
     if (constraints.name !== undefined) {
       const targetName = String(constraints.name).trim().toLowerCase();
-      const nodeNameLower = node.name.toLowerCase();
       if (nodeNameLower !== targetName && !nodeNameLower.includes(targetName)) {
         return false;
       }
@@ -290,8 +300,8 @@ class SemanticGraphService {
     // 3. case-insensitive alias match
     if (constraints.alias !== undefined) {
       const targetAlias = String(constraints.alias).trim().toLowerCase();
-      const hasMatchingAlias = node.aliases.some(
-        a => a.toLowerCase() === targetAlias || a.toLowerCase().includes(targetAlias)
+      const hasMatchingAlias = nodeAliases.some(
+        a => typeof a === 'string' && (a.toLowerCase() === targetAlias || a.toLowerCase().includes(targetAlias))
       );
       if (!hasMatchingAlias) return false;
     }
@@ -299,7 +309,7 @@ class SemanticGraphService {
     // 4. case-insensitive category match
     if (constraints.category !== undefined) {
       const targetCategory = String(constraints.category).trim().toLowerCase();
-      if (node.category.toLowerCase() !== targetCategory) {
+      if (nodeCategoryLower !== targetCategory) {
         return false;
       }
     }
@@ -307,14 +317,14 @@ class SemanticGraphService {
     // 5. case-insensitive exact tag match
     if (constraints.tag !== undefined) {
       const targetTag = String(constraints.tag).trim().toLowerCase();
-      const hasMatchingTag = node.tags.some(t => t.toLowerCase() === targetTag);
+      const hasMatchingTag = nodeTags.some(t => typeof t === 'string' && t.toLowerCase() === targetTag);
       if (!hasMatchingTag) return false;
     }
 
     // 6. case-insensitive department match
     if (constraints.department !== undefined) {
       const targetDept = String(constraints.department).trim().toLowerCase();
-      if (!node.department) return false;
+      if (!node.department || typeof node.department !== 'string') return false;
       const nodeDeptLower = node.department.toLowerCase();
       if (nodeDeptLower !== targetDept && !nodeDeptLower.includes(targetDept)) {
         return false;
@@ -324,7 +334,7 @@ class SemanticGraphService {
     // 7. accessibility filter
     if (constraints.accessible !== undefined) {
       const targetAccessible = Boolean(constraints.accessible);
-      if (node.accessible !== targetAccessible) {
+      if (Boolean(node.accessible) !== targetAccessible) {
         return false;
       }
     }
@@ -332,13 +342,16 @@ class SemanticGraphService {
     // 8. facility / custom attribute lookup
     if (constraints.facility !== undefined) {
       const targetFacility = String(constraints.facility).trim().toLowerCase();
-      const matchesCustomAttribute = Object.keys(node.customAttributes).some(
-        k => k.toLowerCase() === targetFacility && Boolean(node.customAttributes[k])
+      const customAttrs = node.customAttributes && typeof node.customAttributes === 'object'
+        ? node.customAttributes
+        : {};
+      const matchesCustomAttribute = Object.keys(customAttrs).some(
+        k => k.toLowerCase() === targetFacility && Boolean(customAttrs[k])
       );
-      const matchesTag = node.tags.some(t => t.toLowerCase() === targetFacility);
-      const matchesAlias = node.aliases.some(a => a.toLowerCase().includes(targetFacility));
-      const matchesName = node.name.toLowerCase().includes(targetFacility);
-      const matchesCategory = node.category.toLowerCase() === targetFacility;
+      const matchesTag = nodeTags.some(t => typeof t === 'string' && t.toLowerCase() === targetFacility);
+      const matchesAlias = nodeAliases.some(a => typeof a === 'string' && a.toLowerCase().includes(targetFacility));
+      const matchesName = nodeNameLower.includes(targetFacility);
+      const matchesCategory = nodeCategoryLower === targetFacility;
 
       if (!matchesCustomAttribute && !matchesTag && !matchesAlias && !matchesName && !matchesCategory) {
         return false;
