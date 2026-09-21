@@ -1,6 +1,7 @@
 const { validateContract } = require('../../utils/schema_validator');
 const { getSlmProvider, validateProviderOutput } = require('./slm_provider');
 const semanticGraphService = require('./semantic_graph.service');
+const graphQueryGeneratorService = require('./graph_query_generator.service');
 
 /**
  * AI & Semantic Knowledge Graph Controller (Owner: Surabhi)
@@ -11,6 +12,8 @@ const semanticGraphService = require('./semantic_graph.service');
  *   → Schema Validation (ai-query)
  *   → SLM Provider abstraction (intent / entity / constraint generation)
  *   → Provider Output Validation & Sanitization (strict whitelist enforcement)
+ *   → Graph Query Generation (controlled read-only query descriptor)
+ *   → Confidence & Ambiguity Gate
  *   → Semantic Graph Service (deterministic candidate resolution)
  *   → Schema Validation (ai-response)
  *   → HTTP Response
@@ -80,13 +83,26 @@ class AiController {
       let targetNodeId = null;
       let responseMessage = null;
 
-      // ── 4. Confidence & Ambiguity Gate ──────────────────────────────────
-      if (intent === 'FALLBACK' || confidence < CONFIDENCE_THRESHOLD || ambiguity) {
+      // ── 4. Structured Graph Query Generation ────────────────────────────
+      let graphQuery;
+      try {
+        graphQuery = graphQueryGeneratorService.generateGraphQuery(extracted);
+      } catch (genErr) {
+        const fallback = buildFallbackPayload('Invalid or unsupported graph query generated.', 0.0);
+        return res.status(200).json(fallback);
+      }
+
+      // ── 5. Confidence, Ambiguity & Operation Gate ───────────────────────
+      if (
+        graphQuery.operation === 'NO_OP' ||
+        graphQuery.confidence < CONFIDENCE_THRESHOLD ||
+        graphQuery.ambiguity
+      ) {
         let fallbackMsg;
-        if (ambiguity) {
+        if (graphQuery.ambiguity) {
           fallbackMsg = 'Your request is ambiguous or conflicting. Please specify a single room, lab, elevator, or emergency exit.';
         }
-        const fallback = buildFallbackPayload(fallbackMsg, confidence, constraints);
+        const fallback = buildFallbackPayload(fallbackMsg, graphQuery.confidence, graphQuery.filters);
         const fallbackValidation = validateContract('ai-response', fallback);
         if (!fallbackValidation.valid) {
           return res.status(500).json({
@@ -100,9 +116,9 @@ class AiController {
         return res.status(200).json(fallback);
       }
 
-      // ── 5. Semantic Graph Candidate Resolution ──────────────────────────
-      if (Object.keys(constraints).length > 0) {
-        const resolution = semanticGraphService.resolveCandidates(constraints);
+      // ── 6. Semantic Graph Candidate Resolution ──────────────────────────
+      if (Object.keys(graphQuery.filters).length > 0) {
+        const resolution = semanticGraphService.resolveCandidates(graphQuery.filters);
 
         if (resolution.status === 'resolved') {
           // Exactly one match found
