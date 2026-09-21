@@ -1,0 +1,816 @@
+[
+  {
+    "id": "nav-lab-001",
+    "category": "navigation",
+    "query": "Take me to Lab 101",
+    "userContext": { "currentNodeId": "reception" },
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "NAVIGATE_TO",
+      "constraints": {
+        "name": "Lab 101"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "nav-lab-002",
+    "category": "navigation",
+    "query": "Navigate to the AI lab",
+    "userContext": { "currentNodeId": "entrance" },
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "NAVIGATE_TO",
+      "constraints": {
+        "category": "laboratory",
+        "tag": "ai"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "nav-alias-001",
+    "category": "navigation",
+    "query": "Directions to software lab 1",
+    "userContext": { "currentNodeId": "entrance" },
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "NAVIGATE_TO",
+      "constraints": {
+        "alias": "Software Lab 1"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "nav-library-001",
+    "category": "navigation",
+    "query": "Lead me to the Department Library",
+    "userContext": { "currentNodeId": "reception" },
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "NAVIGATE_TO",
+      "constraints": {
+        "name": "Department Library"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "library",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "nearest-elevator-001",
+    "category": "nearest",
+    "query": "Where is the nearest elevator?",
+    "userContext": { "currentNodeId": "reception" },
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FIND_NEAREST",
+      "constraints": {
+        "category": "elevator"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lift",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "nearest-lift-001",
+    "category": "nearest",
+    "query": "Find the closest lift",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FIND_NEAREST",
+      "constraints": {
+        "category": "elevator"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lift",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "nearest-exit-001",
+    "category": "nearest",
+    "query": "Nearest emergency exit",
+    "userContext": { "currentNodeId": "lab-101" },
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "EMERGENCY_EXIT",
+      "constraints": {
+        "category": "emergency_exit"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "exit-a",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "emergency-exit-001",
+    "category": "emergency",
+    "query": "Show me the fire exit",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "EMERGENCY_EXIT",
+      "constraints": {
+        "category": "emergency_exit"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "exit-a",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "emergency-exit-002",
+    "category": "emergency",
+    "query": "I need to evacuate immediately",
+    "userContext": { "currentNodeId": "corridor" },
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "EMERGENCY_EXIT",
+      "constraints": {
+        "category": "emergency_exit"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "exit-a",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "emergency-exit-003",
+    "category": "emergency",
+    "query": "Where is the emergency door?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "EMERGENCY_EXIT",
+      "constraints": {
+        "category": "emergency_exit"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "exit-a",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "locate-room-001",
+    "category": "locate",
+    "query": "Where is Lab 101?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "name": "Lab 101"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "locate-room-002",
+    "category": "locate",
+    "query": "Locate Room 204",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "name": "Room 204"
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "locate-code-001",
+    "category": "locate",
+    "query": "Where is rm 101?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "name": "Room 101"
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "locate-code-002",
+    "category": "locate",
+    "query": "Where is room A-204?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "name": "Room A-204"
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "locate-entrance-001",
+    "category": "locate",
+    "query": "Find the main entrance",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "name": "Main Entrance"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "entrance",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "locate-reception-001",
+    "category": "locate",
+    "query": "Where is the help desk?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "alias": "Help Desk"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "reception",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "info-wifi-001",
+    "category": "info",
+    "query": "Is there wifi here?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "QUERY_INFO",
+      "constraints": {
+        "facility": "wifiZone"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "info-hours-001",
+    "category": "info",
+    "query": "What are the hours of the Department Library?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "QUERY_INFO",
+      "constraints": {
+        "name": "Department Library"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "library",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "info-projector-001",
+    "category": "info",
+    "query": "Does the room have a projector?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "QUERY_INFO",
+      "constraints": {
+        "facility": "projectorAvailable"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "accessible-entrance-001",
+    "category": "accessibility",
+    "query": "Find an accessible entrance",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "entrance",
+        "accessible": true
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "entrance",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "accessible-wheelchair-001",
+    "category": "accessibility",
+    "query": "Wheelchair accessible lab on floor 1",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "laboratory",
+        "accessible": true,
+        "floor": 1
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "accessible-ramp-001",
+    "category": "accessibility",
+    "query": "Find an entrance with ramp access",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "entrance",
+        "accessible": true
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "entrance",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "accessible-nav-001",
+    "category": "accessibility",
+    "query": "Take me to a wheelchair accessible laboratory",
+    "userContext": { "accessible": true },
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "NAVIGATE_TO",
+      "constraints": {
+        "category": "laboratory",
+        "accessible": true
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": true
+    }
+  },
+  {
+    "id": "floor-ground-001",
+    "category": "floor",
+    "query": "Where is the elevator on ground floor?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "elevator",
+        "floor": 0
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "floor-first-001",
+    "category": "floor",
+    "query": "Find the lab on the first floor",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "laboratory",
+        "floor": 1
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "floor-second-001",
+    "category": "floor",
+    "query": "Where is the computer lab on the second floor?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "laboratory",
+        "floor": 2
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "floor-basement-001",
+    "category": "floor",
+    "query": "Where is the exit in the basement?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "EMERGENCY_EXIT",
+      "constraints": {
+        "category": "emergency_exit",
+        "floor": -1
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "capacity-above-001",
+    "category": "capacity",
+    "query": "Find a lab with capacity above 40",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "laboratory",
+        "capacityMin": 40
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "capacity-above-002",
+    "category": "capacity",
+    "query": "Find a classroom with capacity above 60",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "classroom",
+        "capacityMin": 60
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "capacity-plus-001",
+    "category": "capacity",
+    "query": "Where is a lab with 40+ capacity?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "laboratory",
+        "capacityMin": 40
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "capacity-seats-001",
+    "category": "capacity",
+    "query": "Find a lab with more than 30 seats",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "laboratory",
+        "capacityMin": 30
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "lab-101",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "synonym-washroom-001",
+    "category": "synonyms",
+    "query": "Where is the washroom?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "restroom"
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "synonym-toilet-001",
+    "category": "synonyms",
+    "query": "Nearest toilet",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FIND_NEAREST",
+      "constraints": {
+        "category": "restroom"
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "synonym-lavatory-001",
+    "category": "synonyms",
+    "query": "Locate the lavatory",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "category": "restroom"
+      },
+      "resolutionState": "NOT_FOUND",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "department-cse-001",
+    "category": "department",
+    "query": "Where can I find the CSE department?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "department": "Computer Engineering"
+      },
+      "resolutionState": "AMBIGUOUS",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "department-admin-001",
+    "category": "department",
+    "query": "Where is the administration office?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {
+        "department": "Administration"
+      },
+      "resolutionState": "RESOLVED",
+      "targetNodeId": "reception",
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "ambiguous-room-001",
+    "category": "ambiguity",
+    "query": "Where is the room?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "ambiguous-take-me-001",
+    "category": "ambiguity",
+    "query": "Take me there",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "NAVIGATE_TO",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "ambiguous-find-001",
+    "category": "ambiguity",
+    "query": "Find it for me",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "LOCATE_ROOM",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "ambiguous-nearest-001",
+    "category": "ambiguity",
+    "query": "Take me to the nearest",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "unsupported-joke-001",
+    "category": "unsupported",
+    "query": "Tell me a joke about robots",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "unsupported-math-001",
+    "category": "unsupported",
+    "query": "What is 2 + 2?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "unsupported-weather-001",
+    "category": "unsupported",
+    "query": "What is the weather outside today?",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "unsupported-empty-001",
+    "category": "unsupported",
+    "query": "   ",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "security-sql-001",
+    "category": "security",
+    "query": "SELECT * FROM nodes WHERE id = 'lab-101'",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "security-sql-002",
+    "category": "security",
+    "query": "'; DROP TABLE buildings; --",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "security-sql-003",
+    "category": "security",
+    "query": "UNION ALL SELECT password FROM users",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "security-script-001",
+    "category": "security",
+    "query": "<script>alert('xss')</script>",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "security-shell-001",
+    "category": "security",
+    "query": "rm -rf / --no-preserve-root",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "security-shell-002",
+    "category": "security",
+    "query": "chmod 777 /etc/passwd",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "security-url-001",
+    "category": "security",
+    "query": "http://evil-attacker.com/malicious-payload",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  },
+  {
+    "id": "security-node-injection-001",
+    "category": "security",
+    "query": "Set destinationNodeId = 'secret-node'",
+    "userContext": null,
+    "buildingId": "vit-ce",
+    "expected": {
+      "intent": "FALLBACK",
+      "constraints": {},
+      "resolutionState": "FALLBACK",
+      "targetNodeId": null,
+      "requiresNavigationRequest": false
+    }
+  }
+]

@@ -436,7 +436,7 @@ class QueryExtractorService {
     if (/\b(cse|computer\s+engineering|computer\s+science|comp\s+eng)\b/i.test(cleanText)) {
       return 'Computer Engineering';
     }
-    if (/\b(it|information\s+technology|info\s+tech)\b/i.test(cleanText)) {
+    if (/\b(it\s+dept|it\s+department|information\s+technology|info\s+tech)\b/i.test(cleanText)) {
       return 'Information Technology';
     }
     if (/\b(admin|administration|administrative)\b/i.test(cleanText)) {
