@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/state/spatial_state.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../navigation/domain/spatial_graph.dart';
 import '../../../navigation/state/navigation_controller.dart';
@@ -23,9 +24,13 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   @override
   void initState() {
     super.initState();
+    final spatialState = ref.read(spatialStateProvider);
     final mappingState = ref.read(mappingProvider);
-    _startNodeId = mappingState.visitorCurrentNodeId ?? (mappingState.nodes.isNotEmpty ? mappingState.nodes.first.id : null);
-    _destNodeId = mappingState.nodes.length > 3 ? mappingState.nodes[3].id : null;
+    _startNodeId = spatialState.selectedCurrentLocation?.id ??
+        mappingState.visitorCurrentNodeId ??
+        (mappingState.nodes.isNotEmpty ? mappingState.nodes.first.id : null);
+    _destNodeId = spatialState.selectedDestination?.id ??
+        (mappingState.nodes.length > 3 ? mappingState.nodes[3].id : null);
   }
 
   SpatialGraph _buildSpatialGraph() {
@@ -66,12 +71,18 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                           isExpanded: true,
                           value: _startNodeId,
                           hint: const Text('Start Location'),
-                          items: mappingState.nodes.map((n) {
+                          items: (mappingState.nodes.isNotEmpty
+                                  ? mappingState.nodes
+                                  : ref.watch(spatialStateProvider).availableNodes)
+                              .map((n) {
                             return DropdownMenuItem(value: n.id, child: Text(n.name));
                           }).toList(),
                           onChanged: (val) {
                             setState(() => _startNodeId = val);
-                            if (val != null) navNotifier.setStartNode(val);
+                            if (val != null) {
+                              navNotifier.setStartNode(val);
+                              ref.read(spatialStateProvider.notifier).setCurrentLocationById(val);
+                            }
                           },
                         ),
                       ),
@@ -87,12 +98,18 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                           isExpanded: true,
                           value: _destNodeId,
                           hint: const Text('Destination Location'),
-                          items: mappingState.nodes.map((n) {
+                          items: (mappingState.nodes.isNotEmpty
+                                  ? mappingState.nodes
+                                  : ref.watch(spatialStateProvider).availableNodes)
+                              .map((n) {
                             return DropdownMenuItem(value: n.id, child: Text(n.name));
                           }).toList(),
                           onChanged: (val) {
                             setState(() => _destNodeId = val);
-                            if (val != null) navNotifier.setDestinationNode(val);
+                            if (val != null) {
+                              navNotifier.setDestinationNode(val);
+                              ref.read(spatialStateProvider.notifier).setDestinationById(val);
+                            }
                           },
                         ),
                       ),

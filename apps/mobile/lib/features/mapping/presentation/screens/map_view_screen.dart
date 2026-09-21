@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/state/spatial_state.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../state/mapping_controller.dart';
 import '../widgets/indoor_canvas.dart';
@@ -13,23 +14,27 @@ class MapViewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(mappingProvider);
+    final spatialState = ref.watch(spatialStateProvider);
+
+    final activeLocationId = spatialState.selectedCurrentLocation?.id ?? state.visitorCurrentNodeId;
 
     return AppScaffold(
       title: 'Indoor Map Canvas',
       body: Column(
         children: [
-          // Instructions Banner
+          // Instructions & Context Banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             color: Colors.blue.shade50,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.touch_app, size: 20, color: AppColors.primary),
-                SizedBox(width: 8),
+                const Icon(Icons.touch_app, size: 20, color: AppColors.primary),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Select a node to set your current location (V1 Manual Visitor Location).',
-                    style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                    'Building: ${spatialState.selectedBuilding?.name ?? "AB-1"} • '
+                    'Floor: ${spatialState.selectedFloor?.name ?? "Floor 1"}',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
                   ),
                 ),
               ],
@@ -39,18 +44,19 @@ class MapViewScreen extends ConsumerWidget {
           // Interactive 2D Canvas
           Expanded(
             child: IndoorCanvas(
-              nodes: state.nodes,
+              nodes: state.nodes.isNotEmpty ? state.nodes : spatialState.availableNodes,
               edges: state.edges,
               selectedNodeId: state.selectedNodeId,
-              visitorNodeId: state.visitorCurrentNodeId,
+              visitorNodeId: activeLocationId,
               onNodeTapped: (node) {
                 ref.read(mappingProvider.notifier).selectNode(node.id);
+                ref.read(spatialStateProvider.notifier).setCurrentLocation(node);
               },
             ),
           ),
 
           // Node Selection Bar
-          if (state.nodes.isNotEmpty)
+          if (state.nodes.isNotEmpty || spatialState.availableNodes.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: const BoxDecoration(
@@ -64,8 +70,12 @@ class MapViewScreen extends ConsumerWidget {
                   Expanded(
                     child: DropdownButton<String>(
                       isExpanded: true,
-                      value: state.visitorCurrentNodeId ?? state.nodes.first.id,
-                      items: state.nodes.map((n) {
+                      value: activeLocationId ??
+                          (state.nodes.isNotEmpty
+                              ? state.nodes.first.id
+                              : spatialState.availableNodes.first.id),
+                      items: (state.nodes.isNotEmpty ? state.nodes : spatialState.availableNodes)
+                          .map((n) {
                         return DropdownMenuItem(
                           value: n.id,
                           child: Text('${n.name} (${n.category})'),
@@ -74,6 +84,7 @@ class MapViewScreen extends ConsumerWidget {
                       onChanged: (val) {
                         if (val != null) {
                           ref.read(mappingProvider.notifier).setVisitorLocation(val);
+                          ref.read(spatialStateProvider.notifier).setCurrentLocationById(val);
                         }
                       },
                     ),
