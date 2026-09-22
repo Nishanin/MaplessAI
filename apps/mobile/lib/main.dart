@@ -8,7 +8,7 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
     const ProviderScope(
-      child: MapLessApp(),
+      child: MapLessApp(initialRoute: AppRouter.splash),
     ),
   );
 }
@@ -16,7 +16,12 @@ void main() {
 /// Root Application Widget
 /// Owner: Nishant (Complete Flutter UI/UX & Shell)
 class MapLessApp extends StatelessWidget {
-  const MapLessApp({super.key});
+  final String initialRoute;
+
+  const MapLessApp({
+    super.key,
+    this.initialRoute = AppRouter.home,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +29,8 @@ class MapLessApp extends StatelessWidget {
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      initialRoute: AppRouter.home,
+      navigatorKey: AppRouter.navigatorKey,
+      initialRoute: initialRoute,
       onGenerateRoute: AppRouter.generateRoute,
     );
   }

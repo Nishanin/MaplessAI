@@ -5,6 +5,7 @@ import '../../../core/models/floor_model.dart';
 import '../../../core/models/node_model.dart';
 import '../../../core/models/semantic_metadata_model.dart';
 import '../../../core/utils/json_utils.dart';
+import '../services/sensor_provider.dart';
 import '../services/sensor_service.dart';
 
 class MappingState {
@@ -108,5 +109,6 @@ class MappingController extends StateNotifier<MappingState> {
 }
 
 final mappingProvider = StateNotifierProvider<MappingController, MappingState>((ref) {
-  return MappingController();
+  final sensorService = ref.watch(sensorServiceProvider);
+  return MappingController(sensorService: sensorService);
 });
