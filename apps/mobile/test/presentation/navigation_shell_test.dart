@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mapless_ai/core/state/auth_state.dart';
 import 'package:mapless_ai/core/widgets/app_navigation_shell.dart';
 import 'package:mapless_ai/features/mapping/presentation/screens/home_shell_screen.dart';
 import 'package:mapless_ai/features/mapping/presentation/widgets/map_controls.dart';
@@ -56,6 +57,216 @@ void main() {
       // On Map View screen, we should see map view canvas title
       expect(find.text('Indoor Map Canvas'), findsWidgets);
     });
+
+    testWidgets('HomeShellScreen does not produce RenderFlex overflow at 360 width', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: HomeShellScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(HomeShellScreen), findsOneWidget);
+    });
+
+    testWidgets('HomeShellScreen with authenticated Creator user renders without overflow at 360x800', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith((ref) => AuthController()
+            ..state = const AuthState(
+              status: AuthStatus.authenticated,
+              user: AppUser(
+                id: 'usr-creator',
+                name: 'Nishant',
+                email: 'creator@mapless.ai',
+                role: UserRole.creator,
+              ),
+            )),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: HomeShellScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('CREATOR'), findsOneWidget);
+
+      // Switch to Creator Mapping tab (tab index 2)
+      await tester.tap(find.text('Creator'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Indoor Map Creator Hub'), findsOneWidget);
+      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
+    });
+
+    testWidgets('HomeShellScreen with authenticated Creator user renders without overflow at 390x844', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith((ref) => AuthController()
+            ..state = const AuthState(
+              status: AuthStatus.authenticated,
+              user: AppUser(
+                id: 'usr-creator',
+                name: 'Nishant',
+                email: 'creator@mapless.ai',
+                role: UserRole.creator,
+              ),
+            )),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: HomeShellScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('CREATOR'), findsOneWidget);
+
+      await tester.tap(find.text('Creator'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Indoor Map Creator Hub'), findsOneWidget);
+      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
+    });
+
+    testWidgets('HomeShellScreen with authenticated Creator user renders without overflow at 430x932', (tester) async {
+      tester.view.physicalSize = const Size(430, 932);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith((ref) => AuthController()
+            ..state = const AuthState(
+              status: AuthStatus.authenticated,
+              user: AppUser(
+                id: 'usr-creator',
+                name: 'Nishant',
+                email: 'creator@mapless.ai',
+                role: UserRole.creator,
+              ),
+            )),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: HomeShellScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('CREATOR'), findsOneWidget);
+
+      await tester.tap(find.text('Creator'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Indoor Map Creator Hub'), findsOneWidget);
+      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
+    });
+
+    testWidgets('HomeShellScreen navigates through all 5 tabs without RenderFlex overflow at 360x800', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith((ref) => AuthController()
+            ..state = const AuthState(
+              status: AuthStatus.authenticated,
+              user: AppUser(
+                id: 'usr-creator',
+                name: 'Nishant',
+                email: 'creator@mapless.ai',
+                role: UserRole.creator,
+              ),
+            )),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: HomeShellScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      // Tab 1: Map
+      await tester.tap(find.text('Map'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      // Tab 2: Creator
+      await tester.tap(find.text('Creator'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
+
+      // Tab 3: Routes
+      await tester.tap(find.text('Routes'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      // Tab 4: AI Chat
+      await tester.tap(find.text('AI Chat'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      // Return to Tab 0: Home
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
 
     testWidgets('MapFloatingControls triggers zoom and reset callbacks', (tester) async {
       bool zoomedIn = false;

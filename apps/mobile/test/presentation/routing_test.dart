@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mapless_ai/core/routing/app_router.dart';
 import 'package:mapless_ai/core/routing/invalid_route_screen.dart';
 import 'package:mapless_ai/features/mapping/presentation/screens/ai_chat_screen.dart';
+import 'package:mapless_ai/features/mapping/presentation/screens/building_overview_screen.dart';
 import 'package:mapless_ai/features/mapping/presentation/screens/buildings_screen.dart';
 import 'package:mapless_ai/features/mapping/presentation/screens/creator_mapping_screen.dart';
 import 'package:mapless_ai/features/mapping/presentation/screens/home_screen.dart';
@@ -31,6 +32,7 @@ void main() {
         AppRouter.homeShell: HomeShellScreen,
         AppRouter.dashboard: HomeScreen,
         AppRouter.buildings: BuildingsScreen,
+        AppRouter.buildingOverview: BuildingOverviewScreen,
         AppRouter.creator: CreatorMappingScreen,
         AppRouter.visitor: VisitorScreen,
         AppRouter.map: MapViewScreen,

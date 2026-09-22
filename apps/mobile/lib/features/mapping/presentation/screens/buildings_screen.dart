@@ -111,9 +111,10 @@ class _BuildingsScreenState extends ConsumerState<BuildingsScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, AppRouter.visitor),
-                    child: const Text('Open Visitor Mode'),
+                  TextButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, AppRouter.buildingOverview),
+                    icon: const Icon(Icons.layers_outlined, size: 16),
+                    label: const Text('View Floors'),
                   ),
                 ],
               ),
@@ -139,7 +140,14 @@ class _BuildingsScreenState extends ConsumerState<BuildingsScreen> {
                       return _BuildingCard(
                         building: building,
                         isSelected: isSelected,
-                        onSelect: () => spatialNotifier.selectBuilding(building),
+                        onSelect: () {
+                          spatialNotifier.selectBuilding(building);
+                          Navigator.pushNamed(context, AppRouter.buildingOverview);
+                        },
+                        onOpenOverview: () {
+                          spatialNotifier.selectBuilding(building);
+                          Navigator.pushNamed(context, AppRouter.buildingOverview);
+                        },
                         onOpenMap: () {
                           spatialNotifier.selectBuilding(building);
                           Navigator.pushNamed(context, AppRouter.map);
@@ -162,6 +170,7 @@ class _BuildingCard extends StatelessWidget {
   final BuildingModel building;
   final bool isSelected;
   final VoidCallback onSelect;
+  final VoidCallback onOpenOverview;
   final VoidCallback onOpenMap;
   final VoidCallback onOpenVisitor;
 
@@ -169,6 +178,7 @@ class _BuildingCard extends StatelessWidget {
     required this.building,
     required this.isSelected,
     required this.onSelect,
+    required this.onOpenOverview,
     required this.onOpenMap,
     required this.onOpenVisitor,
   });
@@ -248,31 +258,44 @@ class _BuildingCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              OutlinedButton.icon(
-                onPressed: onOpenMap,
-                icon: const Icon(Icons.map_outlined, size: 16),
-                label: const Text('Map'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  textStyle: AppTypography.labelSmall,
+          Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              alignment: WrapAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onOpenOverview,
+                  icon: const Icon(Icons.layers_outlined, size: 16),
+                  label: const Text('Floors'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    textStyle: AppTypography.labelSmall,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              ElevatedButton.icon(
-                onPressed: onOpenVisitor,
-                icon: const Icon(Icons.directions_walk, size: 16),
-                label: const Text('Visitor Mode'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  textStyle: AppTypography.labelSmall,
+                OutlinedButton.icon(
+                  onPressed: onOpenMap,
+                  icon: const Icon(Icons.map_outlined, size: 16),
+                  label: const Text('Map'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    textStyle: AppTypography.labelSmall,
+                  ),
                 ),
-              ),
-            ],
+                ElevatedButton.icon(
+                  onPressed: onOpenVisitor,
+                  icon: const Icon(Icons.directions_walk, size: 16),
+                  label: const Text('Visitor Mode'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    textStyle: AppTypography.labelSmall,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

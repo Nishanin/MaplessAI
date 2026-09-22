@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../features/mapping/presentation/screens/ai_chat_screen.dart';
+import '../../features/mapping/presentation/screens/building_overview_screen.dart';
 import '../../features/mapping/presentation/screens/buildings_screen.dart';
 import '../../features/mapping/presentation/screens/creator_editor_screen.dart';
 import '../../features/mapping/presentation/screens/creator_mapping_screen.dart';
@@ -35,6 +36,7 @@ abstract final class AppRouter {
   static const String dashboard = '/dashboard';
 
   static const String buildings = '/buildings';
+  static const String buildingOverview = '/buildings/overview';
   static const String creator = '/creator';
   static const String creatorEditor = '/creator/editor';
   static const String creatorPreview = '/creator/preview';
@@ -97,6 +99,12 @@ abstract final class AppRouter {
         return MaterialPageRoute(
           settings: routeSettings,
           builder: (_) => const BuildingsScreen(),
+        );
+
+      case buildingOverview:
+        return MaterialPageRoute(
+          settings: routeSettings,
+          builder: (_) => const BuildingOverviewScreen(),
         );
 
       case creator:
