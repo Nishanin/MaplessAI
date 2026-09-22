@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MapVersion",
+  "description": "Schema for a published immutable map version entity in MapLess AI",
+  "type": "object",
+  "required": ["id", "buildingId", "versionNumber", "versionTag", "changeSummary", "createdBy", "createdAt", "graphSnapshot"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier (UUID) for the published version"
+    },
+    "buildingId": {
+      "type": "string",
+      "description": "Identifier of the parent building"
+    },
+    "versionNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing sequential version number per building"
+    },
+    "versionTag": {
+      "type": "string",
+      "description": "Semantic tag or human-friendly label (e.g. 'v1.0.0')"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["published", "archived", "rolled_back"],
+      "default": "published",
+      "description": "Lifecycle status of this version"
+    },
+    "changeSummary": {
+      "type": "string",
+      "description": "Description of modifications or reason for publishing"
+    },
+    "createdBy": {
+      "type": "string",
+      "description": "User, author, or creator identifier who published this version"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of publication"
+    },
+    "publishedBy": {
+      "type": "string",
+      "description": "Actor who authorized/published the version"
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of official publication"
+    },
+    "parentVersionId": {
+      "type": ["string", "null"],
+      "description": "Optional parent version UUID for lineage tracking"
+    },
+    "graphSnapshot": {
+      "type": "object",
+      "description": "Immutable serialized graph snapshot JSON"
+    }
+  },
+  "additionalProperties": true
+}
