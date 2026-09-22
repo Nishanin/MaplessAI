@@ -12,6 +12,7 @@ import 'creator_mapping_screen.dart';
 import 'home_screen.dart';
 import 'map_view_screen.dart';
 import 'navigation_screen.dart';
+import 'visitor_screen.dart';
 
 /// Primary Application Shell with Bottom Navigation
 /// Owner: Nishant (Presentation Shell)
@@ -29,14 +30,6 @@ class HomeShellScreen extends ConsumerStatefulWidget {
 
 class _HomeShellScreenState extends ConsumerState<HomeShellScreen> {
   late int _currentIndex;
-
-  final List<Widget> _destinations = const [
-    HomeScreen(),
-    MapViewScreen(),
-    CreatorMappingScreen(),
-    NavigationScreen(),
-    AiChatScreen(),
-  ];
 
   @override
   void initState() {
@@ -65,6 +58,23 @@ class _HomeShellScreenState extends ConsumerState<HomeShellScreen> {
     final authState = ref.watch(authProvider);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isCompact = screenWidth < 380;
+    final isCreator = authState.user?.role == UserRole.creator;
+
+    final destinations = isCreator
+        ? const [
+            HomeScreen(),
+            MapViewScreen(),
+            CreatorMappingScreen(),
+            NavigationScreen(),
+            AiChatScreen(),
+          ]
+        : const [
+            HomeScreen(),
+            MapViewScreen(),
+            VisitorScreen(),
+            NavigationScreen(),
+            AiChatScreen(),
+          ];
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -129,10 +139,8 @@ class _HomeShellScreenState extends ConsumerState<HomeShellScreen> {
               onTap: () => Navigator.of(context).pushNamed(AppRouter.profile),
               child: Center(
                 child: AppStatusChip(
-                  label: authState.user!.role == UserRole.creator ? 'CREATOR' : 'VISITOR',
-                  status: authState.user!.role == UserRole.creator
-                      ? AppStatusType.active
-                      : AppStatusType.info,
+                  label: isCreator ? 'CREATOR' : 'VISITOR',
+                  status: isCreator ? AppStatusType.active : AppStatusType.info,
                   isCompact: true,
                 ),
               ),
@@ -156,10 +164,11 @@ class _HomeShellScreenState extends ConsumerState<HomeShellScreen> {
       ),
       body: IndexedStack(
         index: _currentIndex,
-        children: _destinations,
+        children: destinations,
       ),
       bottomNavigationBar: AppNavigationBar(
         currentIndex: _currentIndex,
+        isCreator: isCreator,
         onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;

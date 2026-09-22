@@ -115,8 +115,10 @@ class AuthController extends StateNotifier<AuthState> {
       return false;
     }
 
-    // Success
-    final role = email.toLowerCase().contains('creator') || email.toLowerCase().contains('nishant')
+    // Role determination based on credentials / domain
+    final role = email.toLowerCase().contains('creator') ||
+            email.toLowerCase().contains('staff') ||
+            email.toLowerCase().contains('admin')
         ? UserRole.creator
         : UserRole.visitor;
 
@@ -183,6 +185,29 @@ class AuthController extends StateNotifier<AuthState> {
       clearError: true,
     );
     return true;
+  }
+
+  /// Switch current user role (for demo & testing)
+  void switchRole(UserRole newRole) {
+    if (state.user != null) {
+      final updatedUser = AppUser(
+        id: state.user!.id,
+        name: state.user!.name,
+        email: state.user!.email,
+        role: newRole,
+      );
+      state = state.copyWith(user: updatedUser);
+    } else {
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        user: AppUser(
+          id: 'usr-demo',
+          name: newRole == UserRole.creator ? 'Staff Creator' : 'Campus Visitor',
+          email: newRole == UserRole.creator ? 'creator@mapless.ai' : 'visitor@mapless.ai',
+          role: newRole,
+        ),
+      );
+    }
   }
 
   /// Logout current user

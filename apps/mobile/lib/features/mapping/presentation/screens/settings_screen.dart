@@ -198,7 +198,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Branch', style: TextStyle(fontWeight: FontWeight.w600)),
-                      Text('feature/nishant-mapping-ui', style: TextStyle(color: AppColors.primary)),
+                      Text('main', style: TextStyle(color: AppColors.primary)),
                     ],
                   ),
                 ],

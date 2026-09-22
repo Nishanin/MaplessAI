@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/routing/app_router.dart';
+import '../../../../core/state/auth_state.dart';
 import '../../../../core/state/spatial_state.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -24,6 +25,41 @@ class CreatorMappingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+    if (authState.user != null && authState.user!.role == UserRole.visitor) {
+      return AppScaffold(
+        title: 'Creator Studio',
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_outline, size: 56, color: AppColors.textMuted),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'Creator Access Only',
+                  style: AppTypography.titleLarge.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'This workspace is reserved for authorized map creators and facility staff. Visitors can explore published maps and navigate routes.',
+                  style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AppButton(
+                  label: 'Return to Visitor Navigation',
+                  icon: Icons.explore,
+                  onPressed: () => Navigator.of(context).pushReplacementNamed(AppRouter.home),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final creatorState = ref.watch(creatorProvider);
     final creatorNotifier = ref.read(creatorProvider.notifier);
     final spatialState = ref.watch(spatialStateProvider);

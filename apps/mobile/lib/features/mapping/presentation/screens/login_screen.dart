@@ -30,11 +30,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  void _onQuickFill() {
-    _emailController.text = 'nishant@mapless.ai';
-    _passwordController.text = 'creator123';
-    ref.read(authProvider.notifier).clearError();
-  }
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -207,18 +202,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           isFullWidth: true,
                           isLoading: authState.isLoading,
                           onPressed: _handleLogin,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // Quick Test Fill Pill
-                        OutlinedButton.icon(
-                          onPressed: _onQuickFill,
-                          icon: const Icon(Icons.bolt, size: 16),
-                          label: const Text('Fill Test Account (Nishant)'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            textStyle: AppTypography.labelSmall,
-                          ),
                         ),
                       ],
                     ),
