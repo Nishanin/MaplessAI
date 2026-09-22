@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'sensor_data_source.dart';
 import 'sensor_models.dart';
@@ -17,18 +18,32 @@ final sensorServiceProvider = Provider<ISensorService>((ref) {
 /// Riverpod StateNotifier managing the UI-facing SensorState
 class SensorNotifier extends StateNotifier<SensorState> {
   final ISensorService _service;
+  StreamSubscription<SensorState>? _serviceSub;
 
   SensorNotifier(this._service) : super(_service.state) {
-    _service.stateStream.listen((newState) {
+    _serviceSub = _service.stateStream.listen((newState) {
       if (mounted) {
         state = newState;
       }
     });
   }
 
+  @override
+  void dispose() {
+    _serviceSub?.cancel();
+    _serviceSub = null;
+    super.dispose();
+  }
+
   void start() {
     _service.start();
     state = _service.state;
+  }
+
+  Future<SensorPermissionStatus> requestPermissions() async {
+    final status = await _service.requestPermissions();
+    state = _service.state;
+    return status;
   }
 
   void pause() {

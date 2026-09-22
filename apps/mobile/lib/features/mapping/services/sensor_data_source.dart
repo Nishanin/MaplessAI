@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:pedometer/pedometer.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'sensor_models.dart';
 
@@ -13,6 +15,7 @@ abstract class ISensorDataSource {
 
   Future<SensorAvailability> checkAvailability();
   Future<SensorPermissionStatus> checkPermissions();
+  Future<SensorPermissionStatus> requestPermissions();
 
   void dispose();
 }
@@ -70,9 +73,41 @@ class RealSensorDataSource implements ISensorDataSource {
 
   @override
   Future<SensorPermissionStatus> checkPermissions() async {
-    // Standard motion sensors on Android/iOS require no explicit prompt except
-    // Activity Recognition on Android 10+ for native pedometer.
-    return SensorPermissionStatus.granted;
+    try {
+      final status = await Permission.activityRecognition.status;
+      debugPrint('[MAPLESS][PERMISSION] Activity Recognition status: $status');
+      if (status.isGranted) {
+        return SensorPermissionStatus.granted;
+      } else if (status.isDenied || status.isPermanentlyDenied) {
+        return SensorPermissionStatus.denied;
+      } else if (status.isRestricted) {
+        return SensorPermissionStatus.unavailable;
+      }
+      return SensorPermissionStatus.unknown;
+    } catch (e) {
+      debugPrint('[MAPLESS][PERMISSION] Activity Recognition status check error: $e');
+      return SensorPermissionStatus.unavailable;
+    }
+  }
+
+  @override
+  Future<SensorPermissionStatus> requestPermissions() async {
+    try {
+      debugPrint('[MAPLESS][PERMISSION] Requesting Activity Recognition...');
+      final status = await Permission.activityRecognition.request();
+      debugPrint('[MAPLESS][PERMISSION] Result: $status');
+      if (status.isGranted) {
+        return SensorPermissionStatus.granted;
+      } else if (status.isDenied || status.isPermanentlyDenied) {
+        return SensorPermissionStatus.denied;
+      } else if (status.isRestricted) {
+        return SensorPermissionStatus.unavailable;
+      }
+      return SensorPermissionStatus.unknown;
+    } catch (e) {
+      debugPrint('[MAPLESS][PERMISSION] Activity Recognition request error: $e');
+      return SensorPermissionStatus.unavailable;
+    }
   }
 
   @override
@@ -93,12 +128,14 @@ class FakeSensorDataSource implements ISensorDataSource {
 
   SensorAvailability mockAvailability;
   SensorPermissionStatus mockPermissionStatus;
+  SensorPermissionStatus? mockRequestPermissionResult;
 
   int _currentStepCount = 0;
 
   FakeSensorDataSource({
     this.mockAvailability = const SensorAvailability(),
     this.mockPermissionStatus = SensorPermissionStatus.granted,
+    this.mockRequestPermissionResult,
   });
 
   @override
@@ -158,7 +195,19 @@ class FakeSensorDataSource implements ISensorDataSource {
   Future<SensorAvailability> checkAvailability() async => mockAvailability;
 
   @override
-  Future<SensorPermissionStatus> checkPermissions() async => mockPermissionStatus;
+  Future<SensorPermissionStatus> checkPermissions() async {
+    debugPrint('[MAPLESS][PERMISSION] Activity Recognition status: $mockPermissionStatus');
+    return mockPermissionStatus;
+  }
+
+  @override
+  Future<SensorPermissionStatus> requestPermissions() async {
+    debugPrint('[MAPLESS][PERMISSION] Requesting Activity Recognition...');
+    final result = mockRequestPermissionResult ?? mockPermissionStatus;
+    mockPermissionStatus = result;
+    debugPrint('[MAPLESS][PERMISSION] Result: $result');
+    return result;
+  }
 
   @override
   void dispose() {

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'sensor_config.dart';
 import 'sensor_data_source.dart';
 import 'sensor_math.dart';
@@ -33,6 +35,7 @@ abstract class ISensorService {
   void reset();
   void calibrate();
   void setStepLength(double length);
+  Future<SensorPermissionStatus> requestPermissions();
 
   // Backward compatibility methods
   void startRecording();
@@ -67,7 +70,12 @@ class SensorService implements ISensorService {
   bool _fallbackPedometerArmed = true;
 
   SensorService({ISensorDataSource? dataSource})
-      : _dataSource = dataSource ?? RealSensorDataSource();
+      : _dataSource = dataSource ?? RealSensorDataSource() {
+    if (_dataSource is FakeSensorDataSource) {
+      final fake = _dataSource as FakeSensorDataSource;
+      _state = _state.copyWith(permissionStatus: fake.mockPermissionStatus);
+    }
+  }
 
   @override
   Stream<SensorState> get stateStream => _stateController.stream;
@@ -97,6 +105,10 @@ class SensorService implements ISensorService {
       _cancelSubscriptions();
       _dataSource.dispose();
       _dataSource = dataSource;
+      if (_dataSource is FakeSensorDataSource) {
+        final fake = _dataSource as FakeSensorDataSource;
+        _state = _state.copyWith(permissionStatus: fake.mockPermissionStatus);
+      }
     }
 
     try {
@@ -113,7 +125,7 @@ class SensorService implements ISensorService {
                 ? SensorEngineStatus.error
                 : SensorEngineStatus.idle),
         errorMessage: permission == SensorPermissionStatus.denied
-            ? 'Sensor permission denied. Manual authoring is active.'
+            ? 'Physical activity sensor permission denied. Manual authoring is active.'
             : (availability.isNone
                 ? 'Motion sensors unavailable on this hardware. Manual authoring is active.'
                 : null),
@@ -128,47 +140,116 @@ class SensorService implements ISensorService {
     }
   }
 
+  /// Requests Activity Recognition permission at runtime
+  @override
+  Future<SensorPermissionStatus> requestPermissions() async {
+    final status = await _dataSource.requestPermissions();
+    final isGranted = status == SensorPermissionStatus.granted;
+    _state = _state.copyWith(
+      permissionStatus: status,
+      status: isGranted
+          ? (_state.isRunning ? SensorEngineStatus.running : SensorEngineStatus.idle)
+          : SensorEngineStatus.degraded,
+      errorMessage: isGranted
+          ? null
+          : 'Physical activity recognition permission is required for automatic step counting. Manual coordinate authoring remains available.',
+      clearError: isGranted,
+    );
+    _emitState();
+
+    if (isGranted && _state.isRunning && _stepSub == null) {
+      debugPrint('[MAPLESS][STEP] Subscribing to stepCountStream');
+      _stepSub = _dataSource.stepCount.listen(
+        _handleHardwareStepCount,
+        onError: (error) => _handleStreamError('Pedometer', error),
+      );
+    }
+    return status;
+  }
+
   /// Starts sensor streams and relative coordinate dead reckoning
   /// Safe to call repeatedly (idempotent; no duplicate listeners created).
   @override
   void start() {
     if (_state.isRunning) {
-      return; // Already running; prevent duplicate subscriptions
+      if (_stepSub != null || _state.permissionStatus == SensorPermissionStatus.denied) {
+        return; // Already running with active subscription (or already handled permission denial for this run)
+      }
     }
 
     _cancelSubscriptions();
 
+    final hasPermission = _state.permissionStatus == SensorPermissionStatus.granted;
+
     _state = _state.copyWith(
       isRunning: true,
       isPaused: false,
-      status: SensorEngineStatus.running,
-      clearError: true,
+      status: hasPermission ? SensorEngineStatus.running : SensorEngineStatus.degraded,
+      errorMessage: hasPermission
+          ? null
+          : (_state.permissionStatus == SensorPermissionStatus.denied
+              ? 'Physical activity recognition permission is required for automatic step counting. Manual coordinate authoring remains available.'
+              : null),
+      clearError: hasPermission,
     );
     _emitState();
 
     // 1. Accelerometer Subscription
-    _accelSub = _dataSource.accelerometer.listen(
+    _accelSub ??= _dataSource.accelerometer.listen(
       _handleAccelerometer,
       onError: (error) => _handleStreamError('Accelerometer', error),
     );
 
     // 2. Gyroscope Subscription
-    _gyroSub = _dataSource.gyroscope.listen(
+    _gyroSub ??= _dataSource.gyroscope.listen(
       _handleGyroscope,
       onError: (error) => _handleStreamError('Gyroscope', error),
     );
 
     // 3. Magnetometer Subscription
-    _magSub = _dataSource.magnetometer.listen(
+    _magSub ??= _dataSource.magnetometer.listen(
       _handleMagnetometer,
       onError: (error) => _handleStreamError('Magnetometer', error),
     );
 
     // 4. Hardware Pedometer Subscription
-    _stepSub = _dataSource.stepCount.listen(
-      _handleHardwareStepCount,
-      onError: (error) => _handleStreamError('Pedometer', error),
+    if (hasPermission) {
+      debugPrint('[MAPLESS][STEP] Subscribing to stepCountStream');
+      _stepSub ??= _dataSource.stepCount.listen(
+        _handleHardwareStepCount,
+        onError: (error) => _handleStreamError('Pedometer', error),
+      );
+    } else {
+      _checkAndRequestStepPermission();
+    }
+  }
+
+  Future<void> _checkAndRequestStepPermission() async {
+    var permission = await _dataSource.checkPermissions();
+    if (permission != SensorPermissionStatus.granted) {
+      permission = await _dataSource.requestPermissions();
+    }
+
+    if (!_state.isRunning) return;
+
+    final isGranted = permission == SensorPermissionStatus.granted;
+    _state = _state.copyWith(
+      permissionStatus: permission,
+      status: isGranted ? SensorEngineStatus.running : SensorEngineStatus.degraded,
+      errorMessage: isGranted
+          ? null
+          : 'Physical activity recognition permission is required for automatic step counting. Manual coordinate authoring remains available.',
+      clearError: isGranted,
     );
+    _emitState();
+
+    if (isGranted && _stepSub == null) {
+      debugPrint('[MAPLESS][STEP] Subscribing to stepCountStream');
+      _stepSub = _dataSource.stepCount.listen(
+        _handleHardwareStepCount,
+        onError: (error) => _handleStreamError('Pedometer', error),
+      );
+    }
   }
 
   /// Pauses motion integration without discarding current coordinates
@@ -204,7 +285,7 @@ class SensorService implements ISensorService {
     _state = _state.copyWith(
       isRunning: false,
       isPaused: false,
-      status: SensorEngineStatus.idle,
+      status: _state.hasError ? SensorEngineStatus.degraded : SensorEngineStatus.idle,
     );
     _emitState();
   }
@@ -257,24 +338,53 @@ class SensorService implements ISensorService {
   void dispose() {
     stop();
     _dataSource.dispose();
-    _stateController.close();
-    _stepController.close();
-    _headingController.close();
-    _accelController.close();
-    _gyroController.close();
+    if (!_stateController.isClosed) _stateController.close();
+    if (!_stepController.isClosed) _stepController.close();
+    if (!_headingController.isClosed) _headingController.close();
+    if (!_accelController.isClosed) _accelController.close();
+    if (!_gyroController.isClosed) _gyroController.close();
   }
 
   // --- Internal Sensor Processing ---
 
   void _cancelSubscriptions() {
-    _accelSub?.cancel();
+    final accel = _accelSub;
+    final gyro = _gyroSub;
+    final mag = _magSub;
+    final step = _stepSub;
+
+    // Immediately clear stored references to prevent duplicate cancellation or race conditions
     _accelSub = null;
-    _gyroSub?.cancel();
     _gyroSub = null;
-    _magSub?.cancel();
     _magSub = null;
-    _stepSub?.cancel();
     _stepSub = null;
+
+    _safeCancelSubscription(accel, 'Accelerometer');
+    _safeCancelSubscription(gyro, 'Gyroscope');
+    _safeCancelSubscription(mag, 'Magnetometer');
+    _safeCancelSubscription(step, 'Pedometer');
+  }
+
+  void _safeCancelSubscription(StreamSubscription? sub, String name) {
+    if (sub == null) return;
+    try {
+      final cancelFuture = sub.cancel();
+      cancelFuture.catchError((error) {
+        if (error is PlatformException &&
+            error.message != null &&
+            error.message!.contains('No active stream to cancel')) {
+          return;
+        }
+        _handleStreamError(name, error);
+      });
+    } on PlatformException catch (e) {
+      if (e.message != null && e.message!.contains('No active stream to cancel')) {
+        return;
+      }
+      _handleStreamError(name, e);
+    } catch (e) {
+      _handleStreamError(name, e);
+    }
   }
 
   void _handleAccelerometer(SensorReading3D event) {
@@ -346,10 +456,17 @@ class SensorService implements ISensorService {
 
     if (_initialHardwareStepOffset == null) {
       _initialHardwareStepOffset = hardwareSteps;
+      debugPrint('[MAPLESS][STEP] StepCount event: raw=$hardwareSteps');
+      debugPrint('[MAPLESS][STEP] Baseline=$_initialHardwareStepOffset');
+      debugPrint('[MAPLESS][STEP] Relative steps=0');
       return;
     }
 
     final relativeSteps = hardwareSteps - _initialHardwareStepOffset!;
+    debugPrint('[MAPLESS][STEP] StepCount event: raw=$hardwareSteps');
+    debugPrint('[MAPLESS][STEP] Baseline=$_initialHardwareStepOffset');
+    debugPrint('[MAPLESS][STEP] Relative steps=$relativeSteps');
+
     if (relativeSteps > _state.stepCount) {
       final stepIncrement = relativeSteps - _state.stepCount;
       for (int i = 0; i < stepIncrement; i++) {

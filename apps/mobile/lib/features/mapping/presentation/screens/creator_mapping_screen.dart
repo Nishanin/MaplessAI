@@ -378,15 +378,19 @@ class CreatorMappingScreen extends ConsumerWidget {
                         children: [
                           const Icon(Icons.sensors, color: AppColors.textSecondary, size: 20),
                           const SizedBox(width: 8),
-                          Text(
-                            'Phase 4 Sensor Engine (PDR & Orientation)',
-                            style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.bold),
+                          Expanded(
+                            child: Text(
+                              'Phase 4 Sensor Engine (PDR & Orientation)',
+                              style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Live sensor fusion (accelerometer, gyroscope, magnetometer, step-counter) is scheduled for Phase 4. Manual coordinate authoring is active for Phase 3.',
+                        'Live sensor fusion is active for creator-assisted indoor mapping. Manual coordinate authoring remains available when sensor tracking is unavailable.',
                         style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -429,55 +433,120 @@ class CreatorMappingScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.sm),
-                      // Walkthrough & Calibration Controls
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                if (liveSensor.isRunning || sensorState.isRecordingWalkthrough) {
-                                  sensorController.stopWalkthrough();
-                                  liveSensorNotifier.stop();
-                                } else {
-                                  sensorController.startWalkthrough();
-                                  liveSensorNotifier.start();
-                                }
-                              },
-                              icon: Icon(
-                                (liveSensor.isRunning || sensorState.isRecordingWalkthrough)
-                                    ? Icons.stop
-                                    : Icons.play_arrow,
-                                size: 16,
-                                color: (liveSensor.isRunning || sensorState.isRecordingWalkthrough)
-                                    ? Colors.red
-                                    : AppColors.primary,
-                              ),
-                              label: Text(
-                                (liveSensor.isRunning || sensorState.isRecordingWalkthrough)
-                                    ? 'Stop Walkthrough'
-                                    : 'Start Walkthrough',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: (liveSensor.isRunning || sensorState.isRecordingWalkthrough)
-                                      ? Colors.red
-                                      : AppColors.primary,
+                      if (liveSensor.errorMessage != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber.shade900),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  liveSensor.errorMessage!,
+                                  style: TextStyle(fontSize: 11, color: Colors.amber.shade900, height: 1.3),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          OutlinedButton.icon(
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.sm),
+                      // Walkthrough & Calibration Controls (Responsive Stacking)
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isCompact = constraints.maxWidth < 380;
+                          final isWalking = liveSensor.isRunning || sensorState.isRecordingWalkthrough;
+
+                          final startStopButton = OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            ),
+                            onPressed: () {
+                              if (isWalking) {
+                                liveSensorNotifier.stop();
+                                sensorController.stopWalkthrough();
+                              } else {
+                                liveSensorNotifier.start();
+                                sensorController.startWalkthrough();
+                              }
+                            },
+                            icon: Icon(
+                              isWalking ? Icons.stop : Icons.play_arrow,
+                              size: 16,
+                              color: isWalking ? Colors.red : AppColors.primary,
+                            ),
+                            label: Text(
+                              isWalking ? 'Stop Walkthrough' : 'Start Walkthrough',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isWalking ? Colors.red : AppColors.primary,
+                              ),
+                            ),
+                          );
+
+                          final calibrateButton = OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                            ),
                             onPressed: () => liveSensorNotifier.calibrate(),
                             icon: const Icon(Icons.tune, size: 14),
-                            label: const Text('Zero Heading', style: TextStyle(fontSize: 11)),
-                          ),
-                          const SizedBox(width: 4),
-                          OutlinedButton(
+                            label: const Text(
+                              'Zero Heading (0°)',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11),
+                            ),
+                          );
+
+                          final resetButton = OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                            ),
                             onPressed: () => liveSensorNotifier.reset(),
-                            child: const Text('Reset', style: TextStyle(fontSize: 11)),
-                          ),
-                        ],
+                            icon: const Icon(Icons.refresh, size: 14),
+                            label: const Text(
+                              'Reset Origin',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11),
+                            ),
+                          );
+
+                          if (isCompact) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                startStopButton,
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(child: calibrateButton),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: resetButton),
+                                  ],
+                                ),
+                              ],
+                            );
+                          }
+
+                          return Row(
+                            children: [
+                              Expanded(flex: 3, child: startStopButton),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: calibrateButton),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: resetButton),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 6),
                       const Text(
@@ -513,25 +582,30 @@ class _StatusCounter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 20, color: color),
           const SizedBox(height: 4),
           Text(
             '$count',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
           Text(
             label,
             style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -553,22 +627,35 @@ class _SensorMiniTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icon, size: 16, color: AppColors.primary),
           const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(title, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
-                Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),

@@ -107,7 +107,8 @@ void main() {
 
       // Phase 4 Sensor engine preview card and notice
       expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
-      expect(find.textContaining('Manual coordinate authoring is active for Phase 3'), findsOneWidget);
+      expect(find.textContaining('Live sensor fusion is active'), findsOneWidget);
+      expect(find.textContaining('Manual coordinate authoring remains available'), findsOneWidget);
       expect(find.text('Step Counter'), findsOneWidget);
       expect(find.text('Compass Heading'), findsOneWidget);
     });
@@ -230,6 +231,106 @@ void main() {
       expect(find.text('Map Published Successfully!'), findsOneWidget);
       expect(find.text('Go to Creator Dashboard'), findsOneWidget);
       expect(find.text('View Campus Buildings'), findsOneWidget);
+    });
+
+    testWidgets('Creator Mapping Hub does not produce RenderFlex overflow at 360 width', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: CreatorMappingScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(CreatorMappingScreen), findsOneWidget);
+    });
+
+    testWidgets('Creator Mapping Hub does not produce RenderFlex overflow at 390 width', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: CreatorMappingScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(CreatorMappingScreen), findsOneWidget);
+    });
+
+    testWidgets('Creator Mapping Hub does not produce RenderFlex overflow at 430 width', (tester) async {
+      tester.view.physicalSize = const Size(430, 932);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: CreatorMappingScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(CreatorMappingScreen), findsOneWidget);
+    });
+
+    testWidgets('Creator Mapping Hub controls remain responsive and non-overflowing when toggled at 360 width', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: CreatorMappingScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Scroll until Start Walkthrough is visible inside SingleChildScrollView
+      final startButton = find.text('Start Walkthrough');
+      await tester.scrollUntilVisible(startButton, 200);
+      expect(startButton, findsOneWidget);
+      await tester.tap(startButton);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Stop Walkthrough'), findsOneWidget);
+
+      // Tap Zero Heading and Reset
+      final calibrateButton = find.text('Zero Heading (0°)');
+      expect(calibrateButton, findsOneWidget);
+      await tester.tap(calibrateButton);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      final resetButton = find.text('Reset Origin');
+      expect(resetButton, findsOneWidget);
+      await tester.tap(resetButton);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
   });
 }

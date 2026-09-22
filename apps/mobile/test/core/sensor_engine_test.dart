@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mapless_ai/features/mapping/services/sensor_config.dart';
@@ -597,4 +599,348 @@ void main() {
       testService.dispose();
     });
   });
+
+  group('8. Sensor Lifecycle Robustness & Safe Platform Cancellation', () {
+    test('rapid start-stop-start-stop sequence executes safely and idempotently', () {
+      final fakeSource = FakeSensorDataSource();
+      final service = SensorService(dataSource: fakeSource);
+
+      service.start();
+      expect(service.state.isRunning, isTrue);
+      service.stop();
+      expect(service.state.isRunning, isFalse);
+
+      service.start();
+      expect(service.state.isRunning, isTrue);
+      service.stop();
+      expect(service.state.isRunning, isFalse);
+
+      service.dispose();
+    });
+
+    test('repeated start calls are idempotent and maintain exactly one listener', () {
+      final fakeSource = FakeSensorDataSource();
+      final service = SensorService(dataSource: fakeSource);
+
+      service.start();
+      service.start();
+      service.start();
+      expect(service.state.isRunning, isTrue);
+
+      // Baseline + 1 step
+      fakeSource.emitStepCount(0);
+      fakeSource.emitStepCount(1);
+
+      // If duplicate listeners existed, step count would be incremented multiple times
+      expect(service.state.stepCount, equals(1));
+
+      service.dispose();
+    });
+
+    test('repeated stop calls are safe and never throw or duplicate cancellation', () {
+      final fakeSource = FakeSensorDataSource();
+      final service = SensorService(dataSource: fakeSource);
+
+      service.start();
+      service.stop();
+      expect(service.state.isRunning, isFalse);
+
+      // Repeated calls must return normally without error
+      expect(() => service.stop(), returnsNormally);
+      expect(() => service.stop(), returnsNormally);
+      expect(service.state.isRunning, isFalse);
+
+      service.dispose();
+    });
+
+    test('pause-resume-pause-resume-stop cycle does not duplicate streams', () {
+      final fakeSource = FakeSensorDataSource();
+      final service = SensorService(dataSource: fakeSource);
+
+      service.start();
+      fakeSource.emitStepCount(0);
+
+      service.pause();
+      expect(service.state.isPaused, isTrue);
+
+      // Step while paused must be ignored
+      fakeSource.emitStepCount(1);
+      expect(service.state.stepCount, equals(0));
+
+      service.resume();
+      expect(service.state.isPaused, isFalse);
+
+      // Step after resume should count
+      fakeSource.emitStepCount(2);
+      expect(service.state.stepCount, equals(2));
+
+      service.pause();
+      expect(service.state.isPaused, isTrue);
+      service.resume();
+      expect(service.state.isPaused, isFalse);
+
+      service.stop();
+      expect(service.state.isRunning, isFalse);
+
+      service.dispose();
+    });
+
+    test('dispose is safe to call after stop and is idempotent', () {
+      final fakeSource = FakeSensorDataSource();
+      final service = SensorService(dataSource: fakeSource);
+
+      service.start();
+      service.stop();
+
+      expect(() => service.dispose(), returnsNormally);
+      // Repeated dispose must not throw "Cannot close a closed StreamController"
+      expect(() => service.dispose(), returnsNormally);
+    });
+
+    test('safe cancellation handles platform exception gracefully when native stream was already unhooked', () async {
+      final throwingSource = _ThrowingCancelSensorDataSource(
+        PlatformException(code: 'error', message: 'No active stream to cancel'),
+      );
+      final service = SensorService(dataSource: throwingSource);
+
+      service.start();
+      expect(service.state.isRunning, isTrue);
+
+      // Stop must NOT crash or emit unhandled asynchronous error
+      expect(() => service.stop(), returnsNormally);
+      expect(service.state.isRunning, isFalse);
+
+      service.dispose();
+    });
+
+    test('safe cancellation preserves and handles unexpected real platform errors', () async {
+      final throwingSource = _ThrowingCancelSensorDataSource(
+        PlatformException(code: 'hardware_failure', message: 'Sensor bus disconnected'),
+      );
+      final service = SensorService(dataSource: throwingSource);
+
+      service.start();
+      expect(service.state.isRunning, isTrue);
+
+      service.stop();
+      // Allow async safe cancellation to report error
+      await Future<void>.delayed(Duration.zero);
+
+      expect(service.state.status, equals(SensorEngineStatus.degraded));
+      expect(service.state.errorMessage, contains('Sensor bus disconnected'));
+
+      service.dispose();
+    });
+  });
+
+  group('9. Android Activity Recognition Runtime Permission & Step Baseline Verification', () {
+    test('permission granted allows normal running status and step stream subscription', () async {
+      final source = FakeSensorDataSource(
+        mockPermissionStatus: SensorPermissionStatus.granted,
+      );
+      final service = SensorService(dataSource: source);
+
+      service.start();
+      expect(service.state.isRunning, isTrue);
+      expect(service.state.status, equals(SensorEngineStatus.running));
+      expect(service.state.permissionStatus, equals(SensorPermissionStatus.granted));
+      expect(service.state.errorMessage, isNull);
+
+      // Baseline + 5 steps
+      source.emitStepCount(100);
+      source.emitStepCount(105);
+      expect(service.state.stepCount, equals(5));
+      expect(service.state.distance, closeTo(5 * SensorConfig.defaultStepLength, 1e-9));
+
+      service.dispose();
+    });
+
+    test('permission denied degrades engine and does not subscribe blindly to step stream', () async {
+      final source = FakeSensorDataSource(
+        mockPermissionStatus: SensorPermissionStatus.denied,
+      );
+      final service = SensorService(dataSource: source);
+
+      service.start();
+      expect(service.state.isRunning, isTrue);
+      // Must NOT falsely report running when step permission is denied
+      expect(service.state.status, equals(SensorEngineStatus.degraded));
+      expect(service.state.permissionStatus, equals(SensorPermissionStatus.denied));
+      expect(
+        service.state.errorMessage,
+        contains('Physical activity recognition permission is required'),
+      );
+
+      // Hardware steps emitted while denied must NOT increment step count
+      source.emitStepCount(100);
+      source.emitStepCount(105);
+      expect(service.state.stepCount, equals(0));
+      expect(service.state.distance, equals(0.0));
+
+      // Compass and heading still work
+      source.emitMagnetometer(0.0, 25.0, -40.0);
+      expect(service.state.heading, isNotNull);
+
+      service.dispose();
+    });
+
+    test('permission unavailable degrades gracefully without crashing', () async {
+      final source = FakeSensorDataSource(
+        mockPermissionStatus: SensorPermissionStatus.unavailable,
+      );
+      final service = SensorService(dataSource: source);
+
+      expect(() => service.start(), returnsNormally);
+      expect(service.state.status, equals(SensorEngineStatus.degraded));
+      expect(service.state.permissionStatus, equals(SensorPermissionStatus.unavailable));
+
+      service.dispose();
+    });
+
+    test('step stream only starts after permission is granted through requestPermissions', () async {
+      final source = FakeSensorDataSource(
+        mockPermissionStatus: SensorPermissionStatus.denied,
+        mockRequestPermissionResult: SensorPermissionStatus.granted,
+      );
+      final service = SensorService(dataSource: source);
+
+      service.start();
+      expect(service.state.status, equals(SensorEngineStatus.degraded));
+      source.emitStepCount(100);
+      expect(service.state.stepCount, equals(0)); // Not subscribed yet
+
+      // Grant permission
+      final reqResult = await service.requestPermissions();
+      expect(reqResult, equals(SensorPermissionStatus.granted));
+      expect(service.state.status, equals(SensorEngineStatus.running));
+      expect(service.state.permissionStatus, equals(SensorPermissionStatus.granted));
+
+      // Steps now count
+      source.emitStepCount(100);
+      source.emitStepCount(103);
+      expect(service.state.stepCount, equals(3));
+
+      service.dispose();
+    });
+
+    test('repeated start does not duplicate subscription when permission is granted', () {
+      final source = FakeSensorDataSource(
+        mockPermissionStatus: SensorPermissionStatus.granted,
+      );
+      final service = SensorService(dataSource: source);
+
+      service.start();
+      service.start();
+      service.start();
+
+      source.emitStepCount(1000);
+      source.emitStepCount(1001);
+
+      // Only 1 step increment even after 3 start() calls
+      expect(service.state.stepCount, equals(1));
+
+      service.dispose();
+    });
+
+    test('baseline calculation converts cumulative hardware steps to relative walkthrough steps', () {
+      final source = FakeSensorDataSource(
+        mockPermissionStatus: SensorPermissionStatus.granted,
+      );
+      final service = SensorService(dataSource: source);
+      service.start();
+
+      // Android lifetime sensor has recorded 1240 steps previously
+      source.emitStepCount(1240);
+      expect(service.state.stepCount, equals(0)); // Walkthrough starts at 0
+
+      // User walks 10 steps -> sensor reaches 1250
+      source.emitStepCount(1250);
+      expect(service.state.stepCount, equals(10)); // Relative steps = 10, NOT 1250!
+      expect(service.state.distance, closeTo(10 * SensorConfig.defaultStepLength, 1e-9));
+
+      // 5 more steps -> sensor reaches 1255
+      source.emitStepCount(1255);
+      expect(service.state.stepCount, equals(15));
+      expect(service.state.distance, closeTo(15 * SensorConfig.defaultStepLength, 1e-9));
+
+      service.dispose();
+    });
+
+    test('manual fallback remains functional when sensor permission is denied', () {
+      final source = FakeSensorDataSource(
+        mockPermissionStatus: SensorPermissionStatus.denied,
+      );
+      final service = SensorService(dataSource: source);
+      service.start();
+
+      // Sensor is degraded
+      expect(service.state.status, equals(SensorEngineStatus.degraded));
+      expect(service.state.stepCount, equals(0));
+
+      // Step length adjustment and reset work without crashing
+      service.setStepLength(0.8);
+      expect(service.state.stepLength, equals(0.8));
+
+      service.reset();
+      expect(service.state.x, equals(0.0));
+      expect(service.state.y, equals(0.0));
+
+      service.dispose();
+    });
+  });
+}
+
+class _ThrowingCancelSensorDataSource extends FakeSensorDataSource {
+  final Object errorOnCancel;
+
+  _ThrowingCancelSensorDataSource(this.errorOnCancel);
+
+  @override
+  Stream<int> get stepCount => _ThrowingCancelStream<int>(errorOnCancel);
+}
+
+class _ThrowingCancelStream<T> extends Stream<T> {
+  final Object errorOnCancel;
+  _ThrowingCancelStream(this.errorOnCancel);
+
+  @override
+  StreamSubscription<T> listen(
+    void Function(T event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return _ThrowingCancelSubscription<T>(errorOnCancel);
+  }
+}
+
+class _ThrowingCancelSubscription<T> implements StreamSubscription<T> {
+  final Object errorOnCancel;
+  _ThrowingCancelSubscription(this.errorOnCancel);
+
+  @override
+  Future<void> cancel() {
+    return Future<void>.error(errorOnCancel);
+  }
+
+  @override
+  void onData(void Function(T data)? handleData) {}
+
+  @override
+  void onError(Function? handleError) {}
+
+  @override
+  void onDone(void Function()? handleDone) {}
+
+  @override
+  void pause([Future<void>? resumeSignal]) {}
+
+  @override
+  void resume() {}
+
+  @override
+  bool get isPaused => false;
+
+  @override
+  Future<E> asFuture<E>([E? futureValue]) => Completer<E>().future;
 }
