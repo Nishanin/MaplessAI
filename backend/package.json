@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "jest --detectOpenHandles --runInBand"
+    "test": "jest --detectOpenHandles --runInBand",
+    "evaluate:semantic": "node src/features/ai/semantic_evaluator.js"
   },
   "dependencies": {
     "ajv": "^8.17.1",
