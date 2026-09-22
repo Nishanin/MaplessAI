@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/state/auth_state.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../versioning/state/versioning_controller.dart';
 import '../../state/mapping_controller.dart';
@@ -83,7 +84,7 @@ class _VersionHistoryScreenState extends ConsumerState<VersionHistoryScreen> {
                             onPressed: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Rollback to v${item.versionNumber} requested (Piyush feature branch)'),
+                                  content: Text('Rollback to snapshot v${item.versionNumber} initiated'),
                                 ),
                               );
                             },
@@ -100,11 +101,12 @@ class _VersionHistoryScreenState extends ConsumerState<VersionHistoryScreen> {
         icon: const Icon(Icons.camera_alt, color: Colors.white),
         label: const Text('Create Snapshot', style: TextStyle(color: Colors.white)),
         onPressed: () {
+          final author = ref.read(authProvider).user?.name ?? 'Creator';
           ref.read(versioningProvider.notifier).createSnapshot(
-                mappingState.building?.id ?? 'vit-ce',
+                mappingState.building?.id ?? 'bld-vit-cc-01',
                 {'nodes': mappingState.nodes.length, 'edges': mappingState.edges.length},
                 'Manual snapshot from app',
-                'nishant-creator',
+                author,
               );
         },
       ),

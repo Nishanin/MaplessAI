@@ -117,7 +117,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 AppTextField(
                   controller: _nameController,
                   label: 'Full Name',
-                  hint: 'Nishant W',
+                  hint: 'e.g. Alex Morgan',
                   prefixIcon: const Icon(Icons.person_outline, size: 20),
                   textInputAction: TextInputAction.next,
                   validator: (value) {
@@ -133,7 +133,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 AppTextField(
                   controller: _emailController,
                   label: 'Email Address',
-                  hint: 'nishant@mapless.ai',
+                  hint: 'e.g. user@institution.edu',
                   prefixIcon: const Icon(Icons.email_outlined, size: 20),
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,

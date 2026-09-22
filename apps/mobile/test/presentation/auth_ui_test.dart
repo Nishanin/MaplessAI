@@ -9,7 +9,7 @@ import 'package:mapless_ai/features/mapping/presentation/screens/register_screen
 
 void main() {
   group('Authentication UI & State Machine', () {
-    testWidgets('LoginScreen displays all input fields and quick fill button', (tester) async {
+    testWidgets('LoginScreen displays all input fields cleanly without test account shortcuts', (tester) async {
       await tester.pumpWidget(
         const ProviderScope(
           child: MaterialApp(
@@ -22,7 +22,9 @@ void main() {
       expect(find.text('Email Address'), findsOneWidget);
       expect(find.text('Password'), findsOneWidget);
       expect(find.text('Sign In'), findsOneWidget);
-      expect(find.text('Fill Test Account (Nishant)'), findsOneWidget);
+      // Verify no prefilled test account shortcuts exist
+      expect(find.text('Fill Test Account (Nishant)'), findsNothing);
+      expect(find.text('Use Nishant'), findsNothing);
     });
 
     testWidgets('Login validates empty inputs and shows error messages', (tester) async {
@@ -42,7 +44,7 @@ void main() {
       expect(find.text('Please enter your password'), findsOneWidget);
     });
 
-    testWidgets('Quick fill button populates test credentials', (tester) async {
+    testWidgets('Manual input entry populates login form accurately', (tester) async {
       await tester.pumpWidget(
         const ProviderScope(
           child: MaterialApp(
@@ -51,10 +53,12 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Fill Test Account (Nishant)'));
+      final textFields = find.byType(TextFormField);
+      await tester.enterText(textFields.first, 'creator@mapless.ai');
+      await tester.enterText(textFields.last, 'creator123');
       await tester.pumpAndSettle();
 
-      expect(find.text('nishant@mapless.ai'), findsOneWidget);
+      expect(find.text('creator@mapless.ai'), findsOneWidget);
       expect(find.text('creator123'), findsOneWidget);
     });
 

@@ -86,6 +86,60 @@ class ProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.md),
 
+            // Role & Workspace Mode Switcher Card
+            AppCard(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Active Workspace Mode',
+                        style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      AppStatusChip(
+                        label: user?.role == UserRole.creator ? 'CREATOR' : 'VISITOR',
+                        status: user?.role == UserRole.creator
+                            ? AppStatusType.active
+                            : AppStatusType.info,
+                        isCompact: true,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Toggle between Creator Studio and Visitor Navigation experiences.',
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<UserRole>(
+                      segments: const [
+                        ButtonSegment(
+                          value: UserRole.creator,
+                          label: Text('Creator Studio'),
+                          icon: Icon(Icons.architecture_outlined, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: UserRole.visitor,
+                          label: Text('Visitor Nav'),
+                          icon: Icon(Icons.directions_walk_outlined, size: 18),
+                        ),
+                      ],
+                      selected: {user?.role ?? UserRole.visitor},
+                      onSelectionChanged: (selection) {
+                        ref.read(authProvider.notifier).switchRole(selection.first);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
             // Active Spatial Session Summary
             AppCard(
               padding: const EdgeInsets.all(AppSpacing.md),

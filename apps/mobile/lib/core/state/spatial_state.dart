@@ -93,33 +93,6 @@ class SpatialController extends StateNotifier<SpatialState> {
       longitude: 80.1534,
       metadata: {'floors': 3, 'campus': 'VIT Chennai'},
     ),
-    BuildingModel(
-      id: 'bld-vit-tt-02',
-      name: 'Technology Tower (TT)',
-      address: 'East Campus Quad, Chennai, TN',
-      category: 'academic',
-      latitude: 12.8412,
-      longitude: 80.1540,
-      metadata: {'floors': 5, 'campus': 'VIT Chennai'},
-    ),
-    BuildingModel(
-      id: 'bld-vit-lib-03',
-      name: 'Central Library',
-      address: 'Central Square, Campus Center',
-      category: 'facility',
-      latitude: 12.8400,
-      longitude: 80.1528,
-      metadata: {'floors': 2, 'campus': 'VIT Chennai'},
-    ),
-    BuildingModel(
-      id: 'bld-vit-adm-04',
-      name: 'Admin Block',
-      address: 'Main Entrance Avenue',
-      category: 'administrative',
-      latitude: 12.8395,
-      longitude: 80.1520,
-      metadata: {'floors': 2, 'campus': 'VIT Chennai'},
-    ),
   ];
 
   static const List<FloorModel> _defaultAb1Floors = [

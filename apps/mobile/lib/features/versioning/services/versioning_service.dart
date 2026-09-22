@@ -43,7 +43,8 @@ class VersioningService implements IVersioningService {
     String changeSummary,
     String createdBy,
   ) async {
-    final endpoint = '/buildings//snapshots';
+    final endpoint =
+        '$_baseUrl${ApiConstants.versioningPrefix}/buildings/$buildingId/snapshots';
     try {
       final res = await _apiClient.post(endpoint, {
         'snapshotData': snapshotData,
@@ -72,7 +73,8 @@ class VersioningService implements IVersioningService {
 
   @override
   Future<List<VersionSnapshot>> getVersionHistory(String buildingId) async {
-    final endpoint = '/buildings//history';
+    final endpoint =
+        '$_baseUrl${ApiConstants.versioningPrefix}/buildings/$buildingId/history';
     try {
       final res = await _apiClient.get(endpoint);
       if (res['versions'] is List) {
@@ -104,7 +106,8 @@ class VersioningService implements IVersioningService {
     int baseVersion,
     int targetVersion,
   ) async {
-    final endpoint = '/buildings//compare';
+    final endpoint =
+        '$_baseUrl${ApiConstants.versioningPrefix}/buildings/$buildingId/compare';
     try {
       final res = await _apiClient.post(endpoint, {
         'baseVersion': baseVersion,
@@ -127,7 +130,8 @@ class VersioningService implements IVersioningService {
     int targetVersion,
     String restoredBy,
   ) async {
-    final endpoint = '/buildings//rollback';
+    final endpoint =
+        '$_baseUrl${ApiConstants.versioningPrefix}/buildings/$buildingId/rollback';
     try {
       final res = await _apiClient.post(endpoint, {
         'targetVersion': targetVersion,

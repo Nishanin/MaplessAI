@@ -4,14 +4,18 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/routing/app_router.dart';
+import '../../../../core/state/auth_state.dart';
 import '../../../../core/state/spatial_state.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/app_status_chip.dart';
 import '../../state/mapping_controller.dart';
+import '../widgets/create_building_dialog.dart';
 
-/// Main Dashboard Screen
+/// Main Dashboard Screen with Role-Specific Views
+/// Supports distinct Creator Studio, Visitor Navigation, and Starter Overview.
 /// Owner: Nishant (Presentation Shell)
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,24 +28,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-load common mock dataset
+    // Pre-load common baseline dataset
     Future.microtask(() => ref.read(mappingProvider.notifier).loadMockDataset());
+  }
+
+  Future<void> _handleCreateBuilding() async {
+    final newBuilding = await CreateBuildingDialog.show(context);
+    if (newBuilding != null && mounted) {
+      ref.read(spatialStateProvider.notifier).selectBuilding(newBuilding);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Created building "${newBuilding.name}"')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     final mappingState = ref.watch(mappingProvider);
     final spatialState = ref.watch(spatialStateProvider);
 
+    final userRole = authState.user?.role;
+    final isVisitor = userRole == UserRole.visitor;
+    final isCreator = userRole == UserRole.creator;
+
     final activeBuildingName = spatialState.selectedBuilding?.name ??
         mappingState.building?.name ??
-        'VIT Chennai Campus - AB1';
+        'Academic Block 1 (AB-1)';
     final activeFloorName = spatialState.selectedFloor?.name ??
         mappingState.currentFloor?.name ??
-        'Ground Floor';
+        'Ground Floor (Floor 1)';
 
     return AppScaffold(
-      title: AppStrings.appName,
+      title: isCreator
+          ? 'Creator Studio'
+          : isVisitor
+              ? 'Indoor Navigation'
+              : AppStrings.appName,
       body: SingleChildScrollView(
         padding: AppSpacing.screenPadding,
         child: Column(
@@ -49,7 +72,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             // Header Banner Card
             AppCard(
-              backgroundColor: AppColors.primary,
+              backgroundColor: isCreator
+                  ? AppColors.primaryDark
+                  : isVisitor
+                      ? AppColors.primary
+                      : AppColors.primary,
               borderRadius: AppSpacing.radiusLg,
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -60,7 +87,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          AppStrings.appName,
+                          isCreator
+                              ? 'MAPLESS Creator Studio'
+                              : isVisitor
+                                  ? 'MAPLESS Indoor Navigation'
+                                  : AppStrings.appName,
                           style: AppTypography.headlineMedium.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -70,16 +101,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      const AppStatusChip(
-                        label: 'V1 LIVE',
-                        status: AppStatusType.active,
+                      AppStatusChip(
+                        label: isCreator
+                            ? 'CREATOR STUDIO'
+                            : isVisitor
+                                ? 'VISITOR MODE'
+                                : 'V1 LIVE',
+                        status: isCreator || !isVisitor
+                            ? AppStatusType.active
+                            : AppStatusType.info,
                         isCompact: true,
                       ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    AppStrings.appTagline,
+                    isCreator
+                        ? 'Create and maintain indoor maps'
+                        : isVisitor
+                            ? 'Explore and navigate mapped buildings'
+                            : AppStrings.appTagline,
                     style: AppTypography.bodyMedium.copyWith(color: Colors.white70),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -89,14 +130,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       color: Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.amberAccent, size: 18),
-                        SizedBox(width: AppSpacing.sm),
+                        Icon(
+                          isCreator
+                              ? Icons.build_circle_outlined
+                              : isVisitor
+                                  ? Icons.explore_outlined
+                                  : Icons.info_outline,
+                          color: Colors.amberAccent,
+                          size: 18,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
-                            AppStrings.v1Notice,
-                            style: TextStyle(color: Colors.white, fontSize: 11),
+                            isCreator
+                                ? 'Author floor plans, capture sensor dead reckoning, and publish versions.'
+                                : isVisitor
+                                    ? 'Select destinations, follow turn-by-turn routes, and locate facilities.'
+                                    : AppStrings.v1Notice,
+                            style: const TextStyle(color: Colors.white, fontSize: 11),
                           ),
                         ),
                       ],
@@ -107,7 +160,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // Dataset Status Card
+            // Context Status Card
             AppCard(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               child: ListTile(
@@ -125,18 +178,68 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
-                  'Floor: $activeFloorName • '
-                  '${mappingState.nodes.isNotEmpty ? mappingState.nodes.length : 6} Nodes • '
-                  '${mappingState.edges.isNotEmpty ? mappingState.edges.length : 6} Edges',
+                  isCreator
+                      ? 'Floor: $activeFloorName • '
+                          '${mappingState.nodes.isNotEmpty ? mappingState.nodes.length : 7} Nodes • '
+                          '${mappingState.edges.isNotEmpty ? mappingState.edges.length : 6} Edges'
+                      : 'Floor: $activeFloorName • '
+                          '${spatialState.availableFloors.isNotEmpty ? spatialState.availableFloors.length : 3} Floors Available',
                   style: AppTypography.bodySmall,
                 ),
                 trailing: TextButton(
                   onPressed: () => Navigator.pushNamed(context, AppRouter.buildings),
-                  child: const Text('Change'),
+                  child: Text(isCreator ? 'Change Project' : 'Change'),
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
+
+            // Quick Actions Bar
+            if (isCreator) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: 'Create Building',
+                      icon: Icons.add_business,
+                      onPressed: _handleCreateBuilding,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: 'Continue Mapping',
+                      icon: Icons.directions_walk,
+                      variant: AppButtonVariant.outlined,
+                      onPressed: () => Navigator.pushNamed(context, AppRouter.creator),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ] else if (isVisitor) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: 'Browse Buildings',
+                      icon: Icons.apartment,
+                      onPressed: () => Navigator.pushNamed(context, AppRouter.buildings),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: 'My Location',
+                      icon: Icons.my_location,
+                      variant: AppButtonVariant.outlined,
+                      onPressed: () => Navigator.pushNamed(context, AppRouter.visitor),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
 
             // Feature Modules Heading
             Row(
@@ -155,87 +258,199 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  'All Destinations',
+                  isCreator
+                      ? 'Creator Workspace'
+                      : isVisitor
+                          ? 'Navigation Services'
+                          : 'All Destinations',
                   style: AppTypography.labelSmall.copyWith(color: AppColors.textMuted),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
 
-            // Feature Cards Grid
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: AppSpacing.md,
-              mainAxisSpacing: AppSpacing.md,
-              childAspectRatio: 1.1,
-              children: [
-                _FeatureCard(
-                  title: 'Campus Buildings',
-                  subtitle: 'Directory & Selection',
-                  icon: Icons.apartment,
-                  color: Colors.blue,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.buildings),
-                ),
-                _FeatureCard(
-                  title: 'Visitor Mode',
-                  subtitle: 'Wayfinding & Guidance',
-                  icon: Icons.explore,
-                  color: Colors.teal,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.visitor),
-                ),
-                _FeatureCard(
-                  title: 'Indoor Map View',
-                  subtitle: '2D Graph Canvas',
-                  icon: Icons.map,
-                  color: AppColors.primary,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.map),
-                ),
-                _FeatureCard(
-                  title: 'Creator Mapping',
-                  subtitle: 'Sensors & Walkthrough',
-                  icon: Icons.directions_walk,
-                  color: Colors.green,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.creator),
-                ),
-                _FeatureCard(
-                  title: 'Spatial Route',
-                  subtitle: 'A* / Dijkstra Path',
-                  icon: Icons.alt_route,
-                  color: Colors.deepPurple,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.navigation),
-                ),
-                _FeatureCard(
-                  title: 'AI Assistant',
-                  subtitle: 'SLM Natural Language',
-                  icon: Icons.smart_toy,
-                  color: Colors.indigo,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.aiAssistant),
-                ),
-                _FeatureCard(
-                  title: 'Version History',
-                  subtitle: 'Snapshots & Audit',
-                  icon: Icons.history,
-                  color: Colors.blueGrey,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.versionHistory),
-                ),
-                _FeatureCard(
-                  title: 'User Profile',
-                  subtitle: 'Account & Session',
-                  icon: Icons.person_outline,
-                  color: Colors.deepOrange,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.profile),
-                ),
-                _FeatureCard(
-                  title: 'Settings',
-                  subtitle: 'Preferences & Cache',
-                  icon: Icons.settings_outlined,
-                  color: Colors.brown,
-                  onTap: () => Navigator.pushNamed(context, AppRouter.settings),
-                ),
-              ],
-            ),
+            // Feature Cards Grid — STRICTLY ROLE-SEGREGATED
+            if (isCreator)
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: AppSpacing.md,
+                mainAxisSpacing: AppSpacing.md,
+                childAspectRatio: 1.1,
+                children: [
+                  _FeatureCard(
+                    title: 'Creator Mapping',
+                    subtitle: 'Sensors & Walkthrough',
+                    icon: Icons.directions_walk,
+                    color: Colors.green,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.creator),
+                  ),
+                  _FeatureCard(
+                    title: 'Map Editor',
+                    subtitle: 'Nodes & Edges Canvas',
+                    icon: Icons.edit_road,
+                    color: Colors.teal,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.creatorEditor),
+                  ),
+                  _FeatureCard(
+                    title: 'Graph Validation',
+                    subtitle: 'Integrity & Previews',
+                    icon: Icons.fact_check_outlined,
+                    color: Colors.indigo,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.creatorPreview),
+                  ),
+                  _FeatureCard(
+                    title: 'Publish Map',
+                    subtitle: 'Snapshot & Version',
+                    icon: Icons.publish_outlined,
+                    color: Colors.deepPurple,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.creatorPublish),
+                  ),
+                  _FeatureCard(
+                    title: 'Version History',
+                    subtitle: 'Snapshots & Rollback',
+                    icon: Icons.history,
+                    color: Colors.blueGrey,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.versionHistory),
+                  ),
+                  _FeatureCard(
+                    title: 'Indoor Map View',
+                    subtitle: '2D Graph Inspection',
+                    icon: Icons.map,
+                    color: AppColors.primary,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.map),
+                  ),
+                ],
+              )
+            else if (isVisitor)
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: AppSpacing.md,
+                mainAxisSpacing: AppSpacing.md,
+                childAspectRatio: 1.1,
+                children: [
+                  _FeatureCard(
+                    title: 'Campus Buildings',
+                    subtitle: 'Directory & Selection',
+                    icon: Icons.apartment,
+                    color: Colors.blue,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.buildings),
+                  ),
+                  _FeatureCard(
+                    title: 'Indoor Map View',
+                    subtitle: '2D Graph Canvas',
+                    icon: Icons.map,
+                    color: AppColors.primary,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.map),
+                  ),
+                  _FeatureCard(
+                    title: 'Wayfinding & POIs',
+                    subtitle: 'Rooms, Elevators, Exits',
+                    icon: Icons.explore,
+                    color: Colors.teal,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.visitor),
+                  ),
+                  _FeatureCard(
+                    title: 'Spatial Route',
+                    subtitle: 'Turn-by-Turn Paths',
+                    icon: Icons.alt_route,
+                    color: Colors.deepPurple,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.navigation),
+                  ),
+                  _FeatureCard(
+                    title: 'AI Assistant',
+                    subtitle: 'SLM Campus Query',
+                    icon: Icons.smart_toy,
+                    color: Colors.indigo,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.aiAssistant),
+                  ),
+                  _FeatureCard(
+                    title: 'Building Overview',
+                    subtitle: 'Multi-Floor Stack',
+                    icon: Icons.layers_outlined,
+                    color: Colors.orange,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.buildingOverview),
+                  ),
+                ],
+              )
+            else
+              // Starter / Unauthenticated Overview
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: AppSpacing.md,
+                mainAxisSpacing: AppSpacing.md,
+                childAspectRatio: 1.1,
+                children: [
+                  _FeatureCard(
+                    title: 'Campus Buildings',
+                    subtitle: 'Directory & Selection',
+                    icon: Icons.apartment,
+                    color: Colors.blue,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.buildings),
+                  ),
+                  _FeatureCard(
+                    title: 'Visitor Mode',
+                    subtitle: 'Wayfinding & Guidance',
+                    icon: Icons.explore,
+                    color: Colors.teal,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.visitor),
+                  ),
+                  _FeatureCard(
+                    title: 'Indoor Map View',
+                    subtitle: '2D Graph Canvas',
+                    icon: Icons.map,
+                    color: AppColors.primary,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.map),
+                  ),
+                  _FeatureCard(
+                    title: 'Creator Mapping',
+                    subtitle: 'Sensors & Walkthrough',
+                    icon: Icons.directions_walk,
+                    color: Colors.green,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.creator),
+                  ),
+                  _FeatureCard(
+                    title: 'Spatial Route',
+                    subtitle: 'A* / Dijkstra Path',
+                    icon: Icons.alt_route,
+                    color: Colors.deepPurple,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.navigation),
+                  ),
+                  _FeatureCard(
+                    title: 'AI Assistant',
+                    subtitle: 'SLM Natural Language',
+                    icon: Icons.smart_toy,
+                    color: Colors.indigo,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.aiAssistant),
+                  ),
+                  _FeatureCard(
+                    title: 'Version History',
+                    subtitle: 'Snapshots & Audit',
+                    icon: Icons.history,
+                    color: Colors.blueGrey,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.versionHistory),
+                  ),
+                  _FeatureCard(
+                    title: 'User Profile',
+                    subtitle: 'Account & Session',
+                    icon: Icons.person_outline,
+                    color: Colors.deepOrange,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.profile),
+                  ),
+                  _FeatureCard(
+                    title: 'Settings',
+                    subtitle: 'Preferences & Cache',
+                    icon: Icons.settings_outlined,
+                    color: Colors.brown,
+                    onTap: () => Navigator.pushNamed(context, AppRouter.settings),
+                  ),
+                ],
+              ),
             const SizedBox(height: AppSpacing.lg),
           ],
         ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mapless_ai/core/state/auth_state.dart';
 import 'package:mapless_ai/core/widgets/app_navigation_shell.dart';
+import 'package:mapless_ai/features/mapping/presentation/screens/creator_mapping_screen.dart';
 import 'package:mapless_ai/features/mapping/presentation/screens/home_shell_screen.dart';
 import 'package:mapless_ai/features/mapping/presentation/widgets/map_controls.dart';
 
@@ -302,6 +303,131 @@ void main() {
       await tester.tap(find.byIcon(Icons.center_focus_strong));
       await tester.pump();
       expect(reset, isTrue);
+    });
+
+    testWidgets('HomeShellScreen with Visitor user renders Visitor Navigation and hides Creator controls', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith((ref) => AuthController()
+            ..state = const AuthState(
+              status: AuthStatus.authenticated,
+              user: AppUser(
+                id: 'usr-visitor-1',
+                name: 'Visitor One',
+                email: 'visitor@mapless.ai',
+                role: UserRole.visitor,
+              ),
+            )),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: HomeShellScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Visitor dashboard branding
+      expect(find.text('MAPLESS Indoor Navigation'), findsOneWidget);
+      expect(find.text('VISITOR MODE'), findsOneWidget);
+      expect(find.text('VISITOR'), findsOneWidget);
+
+      // Verify Visitor primary actions
+      expect(find.text('Browse Buildings'), findsWidgets);
+      expect(find.text('My Location'), findsOneWidget);
+
+      // Verify absence of creator-only tools
+      expect(find.text('Create Building'), findsNothing);
+      expect(find.text('Continue Mapping'), findsNothing);
+      expect(find.text('Creator Mapping Hub'), findsNothing);
+      expect(find.text('Publish Map'), findsNothing);
+      expect(find.text('Map Editor'), findsNothing);
+
+      // Bottom bar has Explore instead of Creator
+      expect(find.text('Explore'), findsOneWidget);
+      expect(find.text('Creator'), findsNothing);
+
+      // Tapping Explore switches to VisitorScreen
+      await tester.tap(find.text('Explore'));
+      await tester.pumpAndSettle();
+      expect(find.text('Visitor Exploration'), findsOneWidget);
+    });
+
+    testWidgets('Visitor user navigating directly to Creator screens sees Creator Access Only guard', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith((ref) => AuthController()
+            ..state = const AuthState(
+              status: AuthStatus.authenticated,
+              user: AppUser(
+                id: 'usr-visitor-2',
+                name: 'Visitor Two',
+                email: 'visitor2@mapless.ai',
+                role: UserRole.visitor,
+              ),
+            )),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: CreatorMappingScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Creator Access Only'), findsOneWidget);
+      expect(find.text('Return to Visitor Navigation'), findsOneWidget);
+      // Creator Hub controls are NOT shown to visitor
+      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsNothing);
+    });
+
+    testWidgets('HomeShellScreen with Visitor user renders without overflow at 360, 390, 430 widths', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith((ref) => AuthController()
+            ..state = const AuthState(
+              status: AuthStatus.authenticated,
+              user: AppUser(
+                id: 'usr-visitor-3',
+                name: 'Visitor Three',
+                email: 'visitor3@mapless.ai',
+                role: UserRole.visitor,
+              ),
+            )),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      for (final width in [360.0, 390.0, 430.0]) {
+        tester.view.physicalSize = Size(width, 844);
+        tester.view.devicePixelRatio = 1.0;
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              home: HomeShellScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(HomeShellScreen), findsOneWidget);
+      }
+
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
     });
   });
 }
