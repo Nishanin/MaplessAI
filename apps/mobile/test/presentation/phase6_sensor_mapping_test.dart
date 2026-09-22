@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mapless_ai/core/models/building_model.dart';
-import 'package:mapless_ai/core/models/edge_model.dart';
 import 'package:mapless_ai/core/models/floor_model.dart';
 import 'package:mapless_ai/core/models/node_model.dart';
 import 'package:mapless_ai/core/widgets/app_button.dart';
@@ -14,8 +13,6 @@ import 'package:mapless_ai/features/mapping/services/sensor_models.dart';
 import 'package:mapless_ai/features/mapping/services/sensor_provider.dart';
 import 'package:mapless_ai/features/mapping/services/sensor_service.dart';
 import 'package:mapless_ai/features/mapping/state/creator_controller.dart';
-import 'package:mapless_ai/features/mapping/state/walkthrough_controller.dart';
-import 'package:mapless_ai/features/mapping/state/walkthrough_state.dart';
 
 void main() {
   group('Phase 6 — Sensor-Assisted Creator Mapping Presentation Tests', () {
