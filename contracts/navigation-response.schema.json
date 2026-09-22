@@ -28,12 +28,12 @@
     "totalDistance": {
       "type": "number",
       "minimum": 0,
-      "description": "Total route distance in meters"
+      "description": "Total route distance in meters (sum of traversed edge distances)"
     },
     "estimatedTimeSeconds": {
       "type": "number",
       "minimum": 0,
-      "description": "Estimated walking time in seconds (standard walking speed ~1.2 m/s)"
+      "description": "Estimated walking time in seconds (standard walking speed 1.2 m/s)"
     },
     "turnInstructions": {
       "type": "array",
@@ -70,6 +70,27 @@
     "message": {
       "type": "string",
       "description": "Status message or explanation when no route is found"
+    },
+    "routeStatus": {
+      "type": "string",
+      "description": "Machine-readable route outcome (Phase 4)",
+      "enum": [
+        "success",
+        "no_route",
+        "invalid_request",
+        "start_node_not_found",
+        "destination_node_not_found"
+      ]
+    },
+    "algorithm": {
+      "type": "string",
+      "description": "Routing algorithm that produced the result (Phase 4)",
+      "enum": ["dijkstra", "a_star"]
+    },
+    "nodesExplored": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of unique nodes expanded during the search (Phase 4)"
     }
   },
   "additionalProperties": true

@@ -68,7 +68,33 @@ class FloorTransitionModel {
   }
 }
 
+/// Route status values for NavigationResponseModel.
+///
+/// A deterministic small set aligned with the project's error conventions.
+/// Serialized as a string in the JSON response.
+enum RouteStatus {
+  /// A valid path was found and the response is complete.
+  success,
+
+  /// No path exists between start and destination (disconnected or all blocked).
+  noRoute,
+
+  /// The request was structurally invalid (missing/malformed fields).
+  invalidRequest,
+
+  /// The start node ID does not exist in the spatial graph.
+  startNodeNotFound,
+
+  /// The destination node ID does not exist in the spatial graph.
+  destinationNodeNotFound,
+}
+
 /// NavigationResponse domain model matching contracts/navigation-response.schema.json
+///
+/// Phase 4 additions (backward-compatible, schema uses additionalProperties: true):
+/// - [routeStatus]: structured status enum for machine-readable outcomes
+/// - [algorithm]: identifies which routing engine produced the result
+/// - [nodesExplored]: number of unique nodes expanded during search
 class NavigationResponseModel {
   final bool success;
   final List<String> pathNodeIds;
@@ -79,6 +105,17 @@ class NavigationResponseModel {
   final List<FloorTransitionModel> floorTransitions;
   final String? message;
 
+  /// Machine-readable route status (Phase 4).
+  final RouteStatus routeStatus;
+
+  /// Identifies the routing algorithm that produced this result (Phase 4).
+  /// Values: 'dijkstra', 'a_star'
+  final String algorithm;
+
+  /// Number of unique nodes expanded during the search (Phase 4).
+  /// 0 for trivial start == destination responses or failed lookups.
+  final int nodesExplored;
+
   const NavigationResponseModel({
     required this.success,
     required this.pathNodeIds,
@@ -88,6 +125,9 @@ class NavigationResponseModel {
     required this.turnInstructions,
     this.floorTransitions = const [],
     this.message,
+    this.routeStatus = RouteStatus.success,
+    this.algorithm = 'dijkstra',
+    this.nodesExplored = 0,
   });
 
   factory NavigationResponseModel.fromJson(Map<String, dynamic> json) {
@@ -105,6 +145,9 @@ class NavigationResponseModel {
               .toList() ??
           const [],
       message: json['message'] as String?,
+      routeStatus: _routeStatusFromString(json['routeStatus'] as String? ?? 'success'),
+      algorithm: json['algorithm'] as String? ?? 'dijkstra',
+      nodesExplored: json['nodesExplored'] as int? ?? 0,
     );
   }
 
@@ -118,6 +161,40 @@ class NavigationResponseModel {
       'turnInstructions': turnInstructions.map((e) => e.toJson()).toList(),
       'floorTransitions': floorTransitions.map((e) => e.toJson()).toList(),
       if (message != null) 'message': message,
+      'routeStatus': _routeStatusToString(routeStatus),
+      'algorithm': algorithm,
+      'nodesExplored': nodesExplored,
     };
   }
+
+  static String _routeStatusToString(RouteStatus status) {
+    switch (status) {
+      case RouteStatus.success:
+        return 'success';
+      case RouteStatus.noRoute:
+        return 'no_route';
+      case RouteStatus.invalidRequest:
+        return 'invalid_request';
+      case RouteStatus.startNodeNotFound:
+        return 'start_node_not_found';
+      case RouteStatus.destinationNodeNotFound:
+        return 'destination_node_not_found';
+    }
+  }
+
+  static RouteStatus _routeStatusFromString(String value) {
+    switch (value) {
+      case 'no_route':
+        return RouteStatus.noRoute;
+      case 'invalid_request':
+        return RouteStatus.invalidRequest;
+      case 'start_node_not_found':
+        return RouteStatus.startNodeNotFound;
+      case 'destination_node_not_found':
+        return RouteStatus.destinationNodeNotFound;
+      default:
+        return RouteStatus.success;
+    }
+  }
 }
+
