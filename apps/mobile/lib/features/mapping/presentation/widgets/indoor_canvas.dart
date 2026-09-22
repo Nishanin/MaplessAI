@@ -18,6 +18,12 @@ class IndoorCanvas extends StatefulWidget {
   final bool showLabels;
   final bool showAccessibilityBadges;
 
+  // Phase 6 — Creator-side sensor-assisted walkthrough tracking
+  final Offset? creatorMappingPosition;
+  final double? creatorHeading;
+  final List<Offset> creatorWalkedPath;
+  final bool isRecordingWalkthrough;
+
   const IndoorCanvas({
     super.key,
     required this.nodes,
@@ -30,6 +36,10 @@ class IndoorCanvas extends StatefulWidget {
     this.transformationController,
     this.showLabels = true,
     this.showAccessibilityBadges = true,
+    this.creatorMappingPosition,
+    this.creatorHeading,
+    this.creatorWalkedPath = const [],
+    this.isRecordingWalkthrough = false,
   });
 
   @override
@@ -80,7 +90,11 @@ class _IndoorCanvasState extends State<IndoorCanvas> {
     if (widget.nodes.isEmpty || widget.onNodeTapped == null) return;
 
     // Coordinate mapping bounds
-    final bounds = _computeBounds(widget.nodes);
+    final bounds = _computeBounds(
+      widget.nodes,
+      widget.creatorMappingPosition,
+      widget.creatorWalkedPath,
+    );
     final toCanvas = _computeCanvasTransform(bounds, canvasSize);
 
     // Hit-test radius in scene pixels (~26 logical pixels)
@@ -102,7 +116,11 @@ class _IndoorCanvasState extends State<IndoorCanvas> {
     }
   }
 
-  static _BoundingBox _computeBounds(List<NodeModel> nodes) {
+  static _BoundingBox _computeBounds(
+    List<NodeModel> nodes, [
+    Offset? creatorPos,
+    List<Offset>? walkedPath,
+  ]) {
     double minX = double.infinity, maxX = -double.infinity;
     double minY = double.infinity, maxY = -double.infinity;
 
@@ -113,8 +131,33 @@ class _IndoorCanvasState extends State<IndoorCanvas> {
       if (node.y > maxY) maxY = node.y;
     }
 
-    final spanX = (maxX - minX).abs() < 0.1 ? 1.0 : (maxX - minX);
-    final spanY = (maxY - minY).abs() < 0.1 ? 1.0 : (maxY - minY);
+    if (creatorPos != null) {
+      if (creatorPos.dx < minX) minX = creatorPos.dx;
+      if (creatorPos.dx > maxX) maxX = creatorPos.dx;
+      if (creatorPos.dy < minY) minY = creatorPos.dy;
+      if (creatorPos.dy > maxY) maxY = creatorPos.dy;
+    }
+
+    if (walkedPath != null && walkedPath.isNotEmpty) {
+      for (final p in walkedPath) {
+        if (p.dx < minX) minX = p.dx;
+        if (p.dx > maxX) maxX = p.dx;
+        if (p.dy < minY) minY = p.dy;
+        if (p.dy > maxY) maxY = p.dy;
+      }
+    }
+
+    if (minX == double.infinity) {
+      minX = -5.0;
+      maxX = 5.0;
+      minY = -5.0;
+      maxY = 5.0;
+    }
+
+    final rawSpanX = (maxX - minX).abs();
+    final rawSpanY = (maxY - minY).abs();
+    final spanX = rawSpanX < 5.0 ? 5.0 : rawSpanX;
+    final spanY = rawSpanY < 5.0 ? 5.0 : rawSpanY;
 
     return _BoundingBox(minX: minX, maxX: maxX, minY: minY, maxY: maxY, spanX: spanX, spanY: spanY);
   }
@@ -137,7 +180,11 @@ class _IndoorCanvasState extends State<IndoorCanvas> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.nodes.isEmpty) {
+    final hasContent = widget.nodes.isNotEmpty ||
+        widget.creatorMappingPosition != null ||
+        widget.creatorWalkedPath.isNotEmpty;
+
+    if (!hasContent) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -180,6 +227,10 @@ class _IndoorCanvasState extends State<IndoorCanvas> {
                   highlightedPathNodeIds: widget.highlightedPathNodeIds,
                   showLabels: widget.showLabels,
                   showAccessibilityBadges: widget.showAccessibilityBadges,
+                  creatorMappingPosition: widget.creatorMappingPosition,
+                  creatorHeading: widget.creatorHeading,
+                  creatorWalkedPath: widget.creatorWalkedPath,
+                  isRecordingWalkthrough: widget.isRecordingWalkthrough,
                 ),
               ),
             ),
@@ -219,6 +270,12 @@ class _IndoorMapPainter extends CustomPainter {
   final bool showLabels;
   final bool showAccessibilityBadges;
 
+  // Phase 6 — Creator mapping position & walked path
+  final Offset? creatorMappingPosition;
+  final double? creatorHeading;
+  final List<Offset> creatorWalkedPath;
+  final bool isRecordingWalkthrough;
+
   _IndoorMapPainter({
     required this.nodes,
     required this.edges,
@@ -228,18 +285,29 @@ class _IndoorMapPainter extends CustomPainter {
     required this.highlightedPathNodeIds,
     required this.showLabels,
     required this.showAccessibilityBadges,
+    this.creatorMappingPosition,
+    this.creatorHeading,
+    this.creatorWalkedPath = const [],
+    this.isRecordingWalkthrough = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (nodes.isEmpty) return;
-
-    final bounds = _IndoorCanvasState._computeBounds(nodes);
+    final bounds = _IndoorCanvasState._computeBounds(
+      nodes,
+      creatorMappingPosition,
+      creatorWalkedPath,
+    );
     final toCanvas = _IndoorCanvasState._computeCanvasTransform(bounds, size);
     final nodeMap = {for (final n in nodes) n.id: n};
 
     // 0. Draw subtle ambient floor background grid
     _drawGridBackground(canvas, size);
+
+    // 0.5. Draw Creator Walked Path (Phase 6)
+    if (creatorWalkedPath.isNotEmpty) {
+      _drawCreatorWalkedPath(canvas, toCanvas);
+    }
 
     // 1. Draw Edges
     final edgePaint = Paint()
@@ -372,6 +440,105 @@ class _IndoorMapPainter extends CustomPainter {
         _drawNodeLabel(canvas, pos, node, textPainter, isSelected);
       }
     }
+
+    // 3. Draw Creator Mapping Position (Phase 6)
+    if (creatorMappingPosition != null) {
+      final pos = toCanvas(creatorMappingPosition!.dx, creatorMappingPosition!.dy);
+      _drawCreatorMappingMarker(canvas, pos);
+    }
+  }
+
+  void _drawCreatorWalkedPath(Canvas canvas, Offset Function(double x, double y) toCanvas) {
+    if (creatorWalkedPath.length < 2) {
+      if (creatorWalkedPath.isNotEmpty) {
+        final pt = toCanvas(creatorWalkedPath.first.dx, creatorWalkedPath.first.dy);
+        canvas.drawCircle(pt, 3.0, Paint()..color = Colors.cyan.shade700);
+      }
+      return;
+    }
+
+    // Glowing trail underlay
+    final glowPaint = Paint()
+      ..color = Colors.cyanAccent.withValues(alpha: 0.3)
+      ..strokeWidth = 6.0
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    final pathPaint = Paint()
+      ..color = Colors.cyan.shade700
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    final first = toCanvas(creatorWalkedPath.first.dx, creatorWalkedPath.first.dy);
+    path.moveTo(first.dx, first.dy);
+
+    for (int i = 1; i < creatorWalkedPath.length; i++) {
+      final pt = toCanvas(creatorWalkedPath[i].dx, creatorWalkedPath[i].dy);
+      path.lineTo(pt.dx, pt.dy);
+    }
+
+    canvas.drawPath(path, glowPaint);
+    canvas.drawPath(path, pathPaint);
+
+    // Draw small dots at sampled vertices along the path
+    final dotPaint = Paint()..color = Colors.cyan.shade800;
+    for (final pt in creatorWalkedPath) {
+      final canvasPt = toCanvas(pt.dx, pt.dy);
+      canvas.drawCircle(canvasPt, 2.5, dotPaint);
+    }
+  }
+
+  void _drawCreatorMappingMarker(Canvas canvas, Offset pos) {
+    // Creator Avatar Pulsing Outer Halo
+    final haloPaint = Paint()
+      ..color = Colors.cyanAccent.shade700.withValues(alpha: 0.25)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(pos, 22.0, haloPaint);
+
+    // Creator Outer Ring
+    final outerRing = Paint()
+      ..color = Colors.cyan.shade700
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+    canvas.drawCircle(pos, 14.0, outerRing);
+
+    // Inner White Ring
+    final whiteRing = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(pos, 11.0, whiteRing);
+
+    // Core Solid Dot
+    final corePaint = Paint()
+      ..color = Colors.cyan.shade800
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(pos, 7.0, corePaint);
+
+    // Directional Heading Indicator (Cone/Arrow)
+    if (creatorHeading != null) {
+      _drawCreatorHeadingIndicator(canvas, pos, creatorHeading!);
+    }
+  }
+
+  void _drawCreatorHeadingIndicator(Canvas canvas, Offset center, double headingDegrees) {
+    final headingRad = (headingDegrees - 90) * (math.pi / 180.0);
+    final tip = Offset(
+      center.dx + 24.0 * math.cos(headingRad),
+      center.dy + 24.0 * math.sin(headingRad),
+    );
+
+    final arrowPaint = Paint()
+      ..color = Colors.cyan.shade900
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(center, tip, arrowPaint);
+    canvas.drawCircle(tip, 3.5, Paint()..color = Colors.cyan.shade900);
   }
 
   bool _isSequentialRouteEdge(String startId, String endId) {

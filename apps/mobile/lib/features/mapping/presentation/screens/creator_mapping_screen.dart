@@ -13,6 +13,7 @@ import '../../domain/map_draft_model.dart';
 import '../../services/sensor_provider.dart';
 import '../../state/creator_controller.dart';
 import '../../state/mapping_controller.dart';
+import '../../state/walkthrough_controller.dart';
 import '../widgets/create_building_dialog.dart';
 import '../widgets/create_floor_dialog.dart';
 
@@ -463,6 +464,7 @@ class CreatorMappingScreen extends ConsumerWidget {
                           final isCompact = constraints.maxWidth < 380;
                           final isWalking = liveSensor.isRunning || sensorState.isRecordingWalkthrough;
 
+                          final walkthroughNotifier = ref.read(walkthroughProvider.notifier);
                           final startStopButton = OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -471,9 +473,11 @@ class CreatorMappingScreen extends ConsumerWidget {
                               if (isWalking) {
                                 liveSensorNotifier.stop();
                                 sensorController.stopWalkthrough();
+                                walkthroughNotifier.stopWalkthrough();
                               } else {
                                 liveSensorNotifier.start();
                                 sensorController.startWalkthrough();
+                                walkthroughNotifier.startWalkthrough();
                               }
                             },
                             icon: Icon(
@@ -510,7 +514,10 @@ class CreatorMappingScreen extends ConsumerWidget {
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                             ),
-                            onPressed: () => liveSensorNotifier.reset(),
+                            onPressed: () {
+                              liveSensorNotifier.reset();
+                              walkthroughNotifier.resetOrigin();
+                            },
                             icon: const Icon(Icons.refresh, size: 14),
                             label: const Text(
                               'Reset Origin',

@@ -12,6 +12,8 @@ import '../../../../core/widgets/app_text_field.dart';
 class NodeFormDialog extends StatefulWidget {
   final String floorId;
   final NodeModel? initialNode;
+  final double? initialX;
+  final double? initialY;
   final ValueChanged<NodeModel> onSave;
   final VoidCallback? onDelete;
 
@@ -19,6 +21,8 @@ class NodeFormDialog extends StatefulWidget {
     super.key,
     required this.floorId,
     this.initialNode,
+    this.initialX,
+    this.initialY,
     required this.onSave,
     this.onDelete,
   });
@@ -27,6 +31,8 @@ class NodeFormDialog extends StatefulWidget {
     BuildContext context, {
     required String floorId,
     NodeModel? initialNode,
+    double? initialX,
+    double? initialY,
     required ValueChanged<NodeModel> onSave,
     VoidCallback? onDelete,
   }) {
@@ -36,6 +42,8 @@ class NodeFormDialog extends StatefulWidget {
       builder: (_) => NodeFormDialog(
         floorId: floorId,
         initialNode: initialNode,
+        initialX: initialX,
+        initialY: initialY,
         onSave: onSave,
         onDelete: onDelete,
       ),
@@ -71,9 +79,15 @@ class _NodeFormDialogState extends State<NodeFormDialog> {
   void initState() {
     super.initState();
     final n = widget.initialNode;
+    final defaultX = widget.initialX ?? 25.0;
+    final defaultY = widget.initialY ?? 25.0;
     _nameController = TextEditingController(text: n?.name ?? '');
-    _xController = TextEditingController(text: (n?.x ?? 25.0).toString());
-    _yController = TextEditingController(text: (n?.y ?? 25.0).toString());
+    _xController = TextEditingController(
+      text: n != null ? n.x.toStringAsFixed(2) : defaultX.toStringAsFixed(2),
+    );
+    _yController = TextEditingController(
+      text: n != null ? n.y.toStringAsFixed(2) : defaultY.toStringAsFixed(2),
+    );
     _descController = TextEditingController(
       text: (n?.metadata['description'] as String?) ?? '',
     );
@@ -174,6 +188,7 @@ class _NodeFormDialogState extends State<NodeFormDialog> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: _selectedCategory,
                   decoration: InputDecoration(
                     labelText: 'Category / Node Type',
