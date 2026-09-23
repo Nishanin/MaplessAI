@@ -399,7 +399,7 @@ class CreatorMappingScreen extends ConsumerWidget {
 
               const SizedBox(height: AppSpacing.xl),
 
-              // Phase 4 Sensor Engine (PDR & Orientation) Preview Card
+              // Sensor Tracking Preview Card
               Card(
                 color: Colors.blueGrey.shade50,
                 shape: RoundedRectangleBorder(
@@ -417,18 +417,13 @@ class CreatorMappingScreen extends ConsumerWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Phase 4 Sensor Engine (PDR & Orientation)',
+                              'Sensor Tracking',
                               style: AppTypography.titleSmall.copyWith(fontWeight: FontWeight.bold),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Live sensor fusion is active for creator-assisted indoor mapping. Manual coordinate authoring remains available when sensor tracking is unavailable.',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Row(
@@ -590,11 +585,6 @@ class CreatorMappingScreen extends ConsumerWidget {
                             ],
                           );
                         },
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Relative dead-reckoning for creator walkthroughs. Not survey-grade or GPS replacement. Manual coordinate authoring remains fully functional.',
-                        style: TextStyle(fontSize: 10, color: AppColors.textMuted, fontStyle: FontStyle.italic),
                       ),
                     ],
                   ),

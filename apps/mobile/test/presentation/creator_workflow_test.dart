@@ -105,10 +105,8 @@ void main() {
       expect(find.textContaining('Saved Draft Maps'), findsOneWidget);
       expect(find.textContaining('Published Campus Maps'), findsOneWidget);
 
-      // Phase 4 Sensor engine preview card and notice
-      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
-      expect(find.textContaining('Live sensor fusion is active'), findsOneWidget);
-      expect(find.textContaining('Manual coordinate authoring remains available'), findsOneWidget);
+      // Sensor engine preview card
+      expect(find.text('Sensor Tracking'), findsOneWidget);
       expect(find.text('Step Counter'), findsOneWidget);
       expect(find.text('Compass Heading'), findsOneWidget);
     });

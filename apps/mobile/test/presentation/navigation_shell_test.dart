@@ -119,7 +119,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Indoor Map Creator Hub'), findsOneWidget);
-      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
+      expect(find.text('Sensor Tracking'), findsOneWidget);
     });
 
     testWidgets('HomeShellScreen with authenticated Creator user renders without overflow at 390x844', (tester) async {
@@ -162,7 +162,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Indoor Map Creator Hub'), findsOneWidget);
-      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
+      expect(find.text('Sensor Tracking'), findsOneWidget);
     });
 
     testWidgets('HomeShellScreen with authenticated Creator user renders without overflow at 430x932', (tester) async {
@@ -205,7 +205,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Indoor Map Creator Hub'), findsOneWidget);
-      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
+      expect(find.text('Sensor Tracking'), findsOneWidget);
     });
 
     testWidgets('HomeShellScreen navigates through all 5 tabs without RenderFlex overflow at 360x800', (tester) async {
@@ -250,7 +250,7 @@ void main() {
       await tester.tap(find.text('Creator'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsOneWidget);
+      expect(find.text('Sensor Tracking'), findsOneWidget);
 
       // Tab 3: Routes
       await tester.tap(find.text('Routes'));
@@ -388,7 +388,7 @@ void main() {
       expect(find.text('Creator Access Only'), findsOneWidget);
       expect(find.text('Return to Visitor Navigation'), findsOneWidget);
       // Creator Hub controls are NOT shown to visitor
-      expect(find.text('Phase 4 Sensor Engine (PDR & Orientation)'), findsNothing);
+      expect(find.text('Sensor Tracking'), findsNothing);
     });
 
     testWidgets('HomeShellScreen with Visitor user renders without overflow at 360, 390, 430 widths', (tester) async {
