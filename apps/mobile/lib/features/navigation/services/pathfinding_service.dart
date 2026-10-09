@@ -45,6 +45,18 @@ abstract class IPathfindingService {
     NavigationRequestModel request, {
     NavigationAlgorithm algorithm,
   });
+
+  /// Computes the optimal evacuation route from [startNodeId] to the nearest
+  /// reachable explicitly designated emergency exit in [graph].
+  ///
+  /// Evaluates candidates using actual graph route distance (not Euclidean distance).
+  /// Excludes blocked edges by default and respects active [preferences].
+  Future<NavigationResponseModel> computeEmergencyRoute(
+    SpatialGraph graph,
+    String startNodeId, {
+    NavigationPreferencesModel preferences,
+    NavigationAlgorithm algorithm,
+  });
 }
 
 class PathfindingService implements IPathfindingService {
@@ -75,6 +87,16 @@ class PathfindingService implements IPathfindingService {
     NavigationRequestModel request, {
     NavigationAlgorithm algorithm = NavigationAlgorithm.dijkstra,
   }) async {
+    // --- Emergency mode delegation ---
+    if (request.preferences.emergencyMode) {
+      return computeEmergencyRoute(
+        graph,
+        request.startNodeId,
+        preferences: request.preferences,
+        algorithm: algorithm,
+      );
+    }
+
     // --- Request validation ---
     if (!graph.hasNode(request.startNodeId)) {
       return NavigationResponseModel(
@@ -170,7 +192,8 @@ class PathfindingService implements IPathfindingService {
     // --- Path consistency validation ---
     final validationError = _validatePath(
       graph: graph,
-      request: request,
+      startNodeId: request.startNodeId,
+      destinationNodeId: request.destinationNodeId,
       pathNodeIds: pathNodeIds,
       pathEdgeIds: pathEdgeIds,
       totalDistance: totalDistance,
@@ -216,6 +239,204 @@ class PathfindingService implements IPathfindingService {
     );
   }
 
+  @override
+  Future<NavigationResponseModel> computeEmergencyRoute(
+    SpatialGraph graph,
+    String startNodeId, {
+    NavigationPreferencesModel preferences = const NavigationPreferencesModel(
+      avoidBlockedEdges: true,
+      emergencyMode: true,
+    ),
+    NavigationAlgorithm algorithm = NavigationAlgorithm.dijkstra,
+  }) async {
+    // 1. Start node validation
+    if (!graph.hasNode(startNodeId)) {
+      return NavigationResponseModel(
+        success: false,
+        pathNodeIds: const [],
+        totalDistance: 0.0,
+        estimatedTimeSeconds: 0.0,
+        turnInstructions: const [],
+        message: "Start node '$startNodeId' not found in spatial graph",
+        routeStatus: RouteStatus.startNodeNotFound,
+        algorithm: _algorithmLabel(algorithm),
+        nodesExplored: 0,
+      );
+    }
+
+    // 2. Identify all explicitly designated emergency exit nodes
+    final candidateExits = graph.allNodes.where(_isEmergencyExit).toList();
+    if (candidateExits.isEmpty) {
+      return NavigationResponseModel(
+        success: false,
+        pathNodeIds: const [],
+        totalDistance: 0.0,
+        estimatedTimeSeconds: 0.0,
+        turnInstructions: const [],
+        message: "No designated emergency exits found in spatial graph",
+        routeStatus: RouteStatus.noRoute,
+        algorithm: _algorithmLabel(algorithm),
+        nodesExplored: 0,
+      );
+    }
+
+    // 3. Trivial case: user is already at an emergency exit
+    final startNode = graph.getNode(startNodeId)!;
+    if (_isEmergencyExit(startNode)) {
+      final turnInstructions = _turnInstructionGenerator.generate(
+        graph: graph,
+        pathNodeIds: [startNodeId],
+        pathEdgeIds: const [],
+      );
+      return NavigationResponseModel(
+        success: true,
+        pathNodeIds: [startNodeId],
+        edgeIds: const [],
+        totalDistance: 0.0,
+        estimatedTimeSeconds: 0.0,
+        turnInstructions: turnInstructions,
+        floorTransitions: const [],
+        message: 'Already at emergency exit "${startNode.name}"',
+        routeStatus: RouteStatus.success,
+        algorithm: _algorithmLabel(algorithm),
+        nodesExplored: 0,
+      );
+    }
+
+    // 4. Evaluate reachable candidate exits using actual graph path costs
+    NodeModel? bestExit;
+    List<String> bestPathNodeIds = const [];
+    List<String> bestPathEdgeIds = const [];
+    double bestDistance = double.infinity;
+    int totalNodesExplored = 0;
+
+    for (final exitNode in candidateExits) {
+      final policy = TraversalPolicy.fromPreferences(
+        preferences,
+        destinationNodeId: exitNode.id,
+      );
+
+      final bool found;
+      final List<String> pathNodeIds;
+      final List<String> pathEdgeIds;
+      final double totalDistance;
+      final int nodesExplored;
+
+      switch (algorithm) {
+        case NavigationAlgorithm.dijkstra:
+          final result = _dijkstraEngine.findShortestPath(
+            graph,
+            startNodeId,
+            exitNode.id,
+            policy: policy,
+          );
+          found = result.found;
+          pathNodeIds = result.pathNodeIds;
+          pathEdgeIds = result.pathEdgeIds;
+          totalDistance = result.totalDistance;
+          nodesExplored = result.nodesExplored;
+
+        case NavigationAlgorithm.aStar:
+          final result = _astarEngine.findShortestPath(
+            graph,
+            startNodeId,
+            exitNode.id,
+            policy: policy,
+          );
+          found = result.found;
+          pathNodeIds = result.pathNodeIds;
+          pathEdgeIds = result.pathEdgeIds;
+          totalDistance = result.totalDistance;
+          nodesExplored = result.nodesExplored;
+      }
+
+      totalNodesExplored += nodesExplored;
+
+      if (found && totalDistance < bestDistance) {
+        bestDistance = totalDistance;
+        bestExit = exitNode;
+        bestPathNodeIds = pathNodeIds;
+        bestPathEdgeIds = pathEdgeIds;
+      }
+    }
+
+    // 5. No reachable emergency exit
+    if (bestExit == null) {
+      return NavigationResponseModel(
+        success: false,
+        pathNodeIds: const [],
+        totalDistance: 0.0,
+        estimatedTimeSeconds: 0.0,
+        turnInstructions: const [],
+        message: "No reachable emergency exit found from '$startNodeId'",
+        routeStatus: RouteStatus.noRoute,
+        algorithm: _algorithmLabel(algorithm),
+        nodesExplored: totalNodesExplored,
+      );
+    }
+
+    // 6. Path consistency validation
+    final validationError = _validatePath(
+      graph: graph,
+      startNodeId: startNodeId,
+      destinationNodeId: bestExit.id,
+      pathNodeIds: bestPathNodeIds,
+      pathEdgeIds: bestPathEdgeIds,
+      totalDistance: bestDistance,
+    );
+    if (validationError != null) {
+      throw GraphException(
+        'Engine returned an internally inconsistent path: $validationError',
+        code: 'INCONSISTENT_ROUTE_RESULT',
+      );
+    }
+
+    // 7. Metric, instruction, and transition generation
+    final eta = bestDistance > 0 ? bestDistance / walkingSpeedMetersPerSecond : 0.0;
+
+    final turnInstructions = _turnInstructionGenerator.generate(
+      graph: graph,
+      pathNodeIds: bestPathNodeIds,
+      pathEdgeIds: bestPathEdgeIds,
+    );
+
+    final floorTransitions = _buildFloorTransitions(
+      graph: graph,
+      pathNodeIds: bestPathNodeIds,
+      pathEdgeIds: bestPathEdgeIds,
+    );
+
+    return NavigationResponseModel(
+      success: true,
+      pathNodeIds: bestPathNodeIds,
+      edgeIds: bestPathEdgeIds,
+      totalDistance: bestDistance,
+      estimatedTimeSeconds: eta,
+      turnInstructions: turnInstructions,
+      floorTransitions: floorTransitions,
+      message: 'Emergency route calculated to "${bestExit.name}" via ${_algorithmLabel(algorithm)}',
+      routeStatus: RouteStatus.success,
+      algorithm: _algorithmLabel(algorithm),
+      nodesExplored: totalNodesExplored,
+    );
+  }
+
+  /// Returns true if [node] is explicitly designated as an emergency exit.
+  ///
+  /// Inspects canonical category 'emergency_exit' and explicit boolean metadata flags.
+  /// Does NOT classify ordinary entrances, doors, or corridors as emergency exits.
+  static bool _isEmergencyExit(NodeModel node) {
+    final cat = node.category.trim().toLowerCase();
+    if (cat == 'emergency_exit' || cat == 'emergency-exit' || cat == 'emergency exit') {
+      return true;
+    }
+    final meta = node.metadata;
+    if (meta['isEmergencyExit'] == true || meta['emergencyExit'] == true) {
+      return true;
+    }
+    return false;
+  }
+
 
   // ---------------------------------------------------------------------------
   // Internal helpers
@@ -240,20 +461,21 @@ class PathfindingService implements IPathfindingService {
   /// 8. totalDistance equals the sum of selected edge distances within tolerance.
   static String? _validatePath({
     required SpatialGraph graph,
-    required NavigationRequestModel request,
+    required String startNodeId,
+    required String destinationNodeId,
     required List<String> pathNodeIds,
     required List<String> pathEdgeIds,
     required double totalDistance,
   }) {
     if (pathNodeIds.isEmpty) return 'pathNodeIds is empty';
 
-    if (pathNodeIds.first != request.startNodeId) {
+    if (pathNodeIds.first != startNodeId) {
       return 'First path node "${pathNodeIds.first}" != '
-          'requested start "${request.startNodeId}"';
+          'requested start "$startNodeId"';
     }
-    if (pathNodeIds.last != request.destinationNodeId) {
+    if (pathNodeIds.last != destinationNodeId) {
       return 'Last path node "${pathNodeIds.last}" != '
-          'requested destination "${request.destinationNodeId}"';
+          'requested destination "$destinationNodeId"';
     }
 
     if (!graph.hasNode(pathNodeIds.first)) {
