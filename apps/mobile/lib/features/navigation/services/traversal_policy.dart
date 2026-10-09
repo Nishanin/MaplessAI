@@ -24,23 +24,59 @@ class TraversalPolicy {
   /// model has `accessible == false` or is a stair landing, provided the approach is valid).
   final String destinationNodeId;
 
+  /// Set of node IDs that cannot be traversed through during pathfinding.
+  /// Used by Yen's K-shortest paths algorithm to prevent spur paths from
+  /// looping back into the root path prefix.
+  final Set<String> excludedNodeIds;
+
+  /// Set of edge IDs that cannot be traversed during pathfinding.
+  /// Used by Yen's K-shortest paths algorithm to prevent spur paths from
+  /// reusing outgoing edges already branched from the spur node by
+  /// previously accepted shortest paths.
+  final Set<String> excludedEdgeIds;
+
   const TraversalPolicy({
     this.skipBlocked = true,
     this.accessible = false,
     this.avoidStairs = false,
     this.destinationNodeId = '',
+    this.excludedNodeIds = const {},
+    this.excludedEdgeIds = const {},
   });
 
   /// Constructs a [TraversalPolicy] from [NavigationPreferencesModel].
   factory TraversalPolicy.fromPreferences(
     NavigationPreferencesModel preferences, {
     required String destinationNodeId,
+    Set<String> excludedNodeIds = const {},
+    Set<String> excludedEdgeIds = const {},
   }) {
     return TraversalPolicy(
       skipBlocked: preferences.avoidBlockedEdges,
       accessible: preferences.accessible,
       avoidStairs: preferences.avoidStairs,
       destinationNodeId: destinationNodeId,
+      excludedNodeIds: excludedNodeIds,
+      excludedEdgeIds: excludedEdgeIds,
+    );
+  }
+
+  /// Creates a copy of this [TraversalPolicy] with optional field overrides.
+  TraversalPolicy copyWith({
+    bool? skipBlocked,
+    bool? accessible,
+    bool? avoidStairs,
+    String? destinationNodeId,
+    Set<String>? excludedNodeIds,
+    Set<String>? excludedEdgeIds,
+  }) {
+    return TraversalPolicy(
+      skipBlocked: skipBlocked ?? this.skipBlocked,
+      accessible: accessible ?? this.accessible,
+      avoidStairs: avoidStairs ?? this.avoidStairs,
+      destinationNodeId: destinationNodeId ?? this.destinationNodeId,
+      excludedNodeIds: excludedNodeIds ?? this.excludedNodeIds,
+      excludedEdgeIds: excludedEdgeIds ?? this.excludedEdgeIds,
     );
   }
 
@@ -72,7 +108,20 @@ class TraversalPolicy {
       return false;
     }
 
-    // 2. Wheelchair / barrier-free accessibility constraint
+    // 2. Excluded edge filter (Yen's spur search edge deviation)
+    if (excludedEdgeIds.isNotEmpty && excludedEdgeIds.contains(edge.id)) {
+      return false;
+    }
+
+    // 3. Excluded intermediate node filter (Yen's root prefix loop avoidance)
+    // Destination endpoint is preserved so valid entry into destination is never blocked.
+    if (toNode.id != destinationNodeId &&
+        excludedNodeIds.isNotEmpty &&
+        excludedNodeIds.contains(toNode.id)) {
+      return false;
+    }
+
+    // 4. Wheelchair / barrier-free accessibility constraint
     if (accessible) {
       // Inaccessible edge cannot be traversed
       if (!edge.accessible) {
@@ -84,7 +133,7 @@ class TraversalPolicy {
       }
     }
 
-    // 3. Stair avoidance constraint
+    // 5. Stair avoidance constraint
     if (avoidStairs) {
       if (isStairs(edge: edge, fromNode: fromNode, toNode: toNode)) {
         return false;
