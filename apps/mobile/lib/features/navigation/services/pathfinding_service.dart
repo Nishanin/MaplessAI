@@ -6,6 +6,7 @@ import '../../../core/models/node_model.dart';
 import '../domain/spatial_graph.dart';
 import 'astar_engine.dart';
 import 'dijkstra_engine.dart';
+import 'traversal_policy.dart';
 import 'turn_instruction_generator.dart';
 
 /// Algorithm selection for [PathfindingService].
@@ -111,6 +112,11 @@ class PathfindingService implements IPathfindingService {
     final double totalDistance;
     final int nodesExplored;
 
+    final policy = TraversalPolicy.fromPreferences(
+      request.preferences,
+      destinationNodeId: request.destinationNodeId,
+    );
+
     try {
       switch (algorithm) {
         case NavigationAlgorithm.dijkstra:
@@ -118,7 +124,7 @@ class PathfindingService implements IPathfindingService {
             graph,
             request.startNodeId,
             request.destinationNodeId,
-            skipBlocked: request.preferences.avoidBlockedEdges,
+            policy: policy,
           );
           algorithmLabel = 'dijkstra';
           found = result.found;
@@ -132,7 +138,7 @@ class PathfindingService implements IPathfindingService {
             graph,
             request.startNodeId,
             request.destinationNodeId,
-            skipBlocked: request.preferences.avoidBlockedEdges,
+            policy: policy,
           );
           algorithmLabel = 'a_star';
           found = result.found;

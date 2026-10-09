@@ -4,6 +4,7 @@ import '../../../core/errors/exceptions.dart';
 import '../../../core/models/edge_model.dart';
 import '../../../core/models/node_model.dart';
 import '../domain/spatial_graph.dart';
+import 'traversal_policy.dart';
 
 /// Result of an A* shortest-path computation.
 ///
@@ -137,6 +138,7 @@ class AStarEngine {
     String startNodeId,
     String destinationNodeId, {
     bool skipBlocked = true,
+    TraversalPolicy? policy,
   }) {
     // Validate that start node exists
     if (!graph.hasNode(startNodeId)) {
@@ -166,9 +168,15 @@ class AStarEngine {
       );
     }
 
+    final activePolicy = policy ??
+        TraversalPolicy(
+          skipBlocked: skipBlocked,
+          destinationNodeId: destinationNodeId,
+        );
+
     // Determine heuristic admissibility
     final goalNode = graph.getNode(destinationNodeId)!;
-    final heuristicActive = _isHeuristicAdmissible(graph, skipBlocked);
+    final heuristicActive = _isHeuristicAdmissible(graph, activePolicy);
 
     // g-score map: best known distance from start to each node
     final gScore = <String, double>{};
@@ -217,9 +225,19 @@ class AStarEngine {
 
       // Relax outgoing edges
       final outgoing = graph.getOutgoingEdges(currentNodeId);
+      final currentNode = graph.getNode(currentNodeId)!;
       for (final edge in outgoing) {
-        // Skip blocked edges if requested
-        if (skipBlocked && edge.blocked) continue;
+        final neighborNode = graph.getNode(edge.endNodeId);
+        if (neighborNode == null) continue;
+
+        // Apply shared traversal policy (blocked, accessibility, stair avoidance)
+        if (!activePolicy.canTraverse(
+          edge: edge,
+          fromNode: currentNode,
+          toNode: neighborNode,
+        )) {
+          continue;
+        }
 
         final neighborId = edge.endNodeId;
 
@@ -263,21 +281,27 @@ class AStarEngine {
   }
 
   /// Validates whether Euclidean distance is an admissible heuristic for
-  /// the given graph.
+  /// the given graph under the active [policy].
   ///
   /// For admissibility, every traversable edge must satisfy:
   ///   edge.distance >= Euclidean(startNode, endNode)
   ///
   /// If any edge violates this, returns false and the engine will use
   /// h(n) = 0 as a safe fallback.
-  bool _isHeuristicAdmissible(SpatialGraph graph, bool skipBlocked) {
+  bool _isHeuristicAdmissible(SpatialGraph graph, TraversalPolicy policy) {
     for (final edge in graph.allEdges) {
-      // Only check edges that would actually be traversed
-      if (skipBlocked && edge.blocked) continue;
-
       final startNode = graph.getNode(edge.startNodeId);
       final endNode = graph.getNode(edge.endNodeId);
       if (startNode == null || endNode == null) continue;
+
+      // Only check edges that would actually be traversed under the active policy
+      if (!policy.canTraverse(
+        edge: edge,
+        fromNode: startNode,
+        toNode: endNode,
+      )) {
+        continue;
+      }
 
       final euclidean = _euclidean(startNode, endNode);
       // Use a small tolerance for floating-point comparison
