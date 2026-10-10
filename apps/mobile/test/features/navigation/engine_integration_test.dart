@@ -6,6 +6,7 @@ import 'package:mapless_ai/core/models/navigation_request_model.dart';
 import 'package:mapless_ai/core/models/navigation_response_model.dart';
 import 'package:mapless_ai/core/models/node_model.dart';
 import 'package:mapless_ai/features/navigation/domain/spatial_graph.dart';
+import 'package:mapless_ai/features/navigation/models/alternative_routes_result.dart';
 import 'package:mapless_ai/features/navigation/services/pathfinding_service.dart';
 
 void main() {
@@ -641,6 +642,303 @@ void main() {
         expect(
           graph.getOutgoingEdges('entrance').length,
           equals(outgoingBefore),
+        );
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // 13. Contract & Serialization Round-Trip: Success and Failure States
+    // -------------------------------------------------------------------------
+    test(
+      '13. Full JSON round-trip serialization and deserialization across all RouteStatus values and AlternativeRoutesResult',
+      () async {
+        final graph = loadVitTwoFloorsGraph();
+
+        // (a) Successful route round-trip
+        final successReq = const NavigationRequestModel(
+          buildingId: 'vit-ce',
+          startNodeId: 'entrance',
+          destinationNodeId: 'stairs-f1',
+        );
+        final successResp = await service.computeRoute(graph, successReq);
+        expect(successResp.success, isTrue);
+        expect(successResp.routeStatus, equals(RouteStatus.success));
+
+        final successJson = successResp.toJson();
+        expect(successJson['success'], isTrue);
+        expect(successJson['pathNodeIds'], isNotEmpty);
+        expect(successJson['routeStatus'], equals('success'));
+        expect(successJson['algorithm'], equals('dijkstra'));
+
+        final deserializedSuccess = NavigationResponseModel.fromJson(
+          successJson,
+        );
+        expect(deserializedSuccess.success, isTrue);
+        expect(deserializedSuccess.routeStatus, equals(RouteStatus.success));
+        expect(
+          deserializedSuccess.pathNodeIds,
+          equals(successResp.pathNodeIds),
+        );
+        expect(
+          deserializedSuccess.totalDistance,
+          equals(successResp.totalDistance),
+        );
+        expect(
+          deserializedSuccess.turnInstructions.length,
+          equals(successResp.turnInstructions.length),
+        );
+
+        // (b) startNodeNotFound round-trip
+        final missingStartReq = const NavigationRequestModel(
+          buildingId: 'vit-ce',
+          startNodeId: 'non-existent-start',
+          destinationNodeId: 'stairs-f1',
+        );
+        final missingStartResp = await service.computeRoute(
+          graph,
+          missingStartReq,
+        );
+        expect(missingStartResp.success, isFalse);
+        expect(
+          missingStartResp.routeStatus,
+          equals(RouteStatus.startNodeNotFound),
+        );
+
+        final missingStartJson = missingStartResp.toJson();
+        expect(missingStartJson['success'], isFalse);
+        expect(missingStartJson['routeStatus'], equals('start_node_not_found'));
+        expect(missingStartJson['pathNodeIds'], isEmpty);
+        expect(missingStartJson['turnInstructions'], isEmpty);
+
+        final deserializedMissingStart = NavigationResponseModel.fromJson(
+          missingStartJson,
+        );
+        expect(deserializedMissingStart.success, isFalse);
+        expect(
+          deserializedMissingStart.routeStatus,
+          equals(RouteStatus.startNodeNotFound),
+        );
+        expect(
+          deserializedMissingStart.message,
+          contains('non-existent-start'),
+        );
+
+        // (c) destinationNodeNotFound round-trip
+        final missingDestReq = const NavigationRequestModel(
+          buildingId: 'vit-ce',
+          startNodeId: 'entrance',
+          destinationNodeId: 'non-existent-dest',
+        );
+        final missingDestResp = await service.computeRoute(
+          graph,
+          missingDestReq,
+        );
+        expect(missingDestResp.success, isFalse);
+        expect(
+          missingDestResp.routeStatus,
+          equals(RouteStatus.destinationNodeNotFound),
+        );
+
+        final missingDestJson = missingDestResp.toJson();
+        expect(
+          missingDestJson['routeStatus'],
+          equals('destination_node_not_found'),
+        );
+        final deserializedMissingDest = NavigationResponseModel.fromJson(
+          missingDestJson,
+        );
+        expect(
+          deserializedMissingDest.routeStatus,
+          equals(RouteStatus.destinationNodeNotFound),
+        );
+
+        // (d) noRoute round-trip
+        final isolatedGraph = SpatialGraph()
+          ..addNode(createNode('iso-1'))
+          ..addNode(createNode('iso-2'));
+        final noRouteReq = const NavigationRequestModel(
+          buildingId: 'test',
+          startNodeId: 'iso-1',
+          destinationNodeId: 'iso-2',
+        );
+        final noRouteResp = await service.computeRoute(
+          isolatedGraph,
+          noRouteReq,
+        );
+        expect(noRouteResp.success, isFalse);
+        expect(noRouteResp.routeStatus, equals(RouteStatus.noRoute));
+
+        final noRouteJson = noRouteResp.toJson();
+        expect(noRouteJson['routeStatus'], equals('no_route'));
+        final deserializedNoRoute = NavigationResponseModel.fromJson(
+          noRouteJson,
+        );
+        expect(deserializedNoRoute.routeStatus, equals(RouteStatus.noRoute));
+
+        // (e) invalidRequest round-trip (via synthetic NavigationResponseModel)
+        const invalidResp = NavigationResponseModel(
+          success: false,
+          pathNodeIds: [],
+          totalDistance: 0.0,
+          estimatedTimeSeconds: 0.0,
+          turnInstructions: [],
+          routeStatus: RouteStatus.invalidRequest,
+          message: 'Invalid navigation request parameter',
+          algorithm: 'dijkstra',
+        );
+        final invalidJson = invalidResp.toJson();
+        expect(invalidJson['routeStatus'], equals('invalid_request'));
+        final deserializedInvalid = NavigationResponseModel.fromJson(
+          invalidJson,
+        );
+        expect(
+          deserializedInvalid.routeStatus,
+          equals(RouteStatus.invalidRequest),
+        );
+
+        // (f) AlternativeRoutesResult success round-trip
+        final multiReq = const NavigationRequestModel(
+          buildingId: 'vit-ce',
+          startNodeId: 'entrance',
+          destinationNodeId: 'lab-201',
+        );
+        final altResult = await service.computeAlternativeRoutes(
+          graph,
+          multiReq,
+          maxRoutes: 2,
+        );
+        expect(altResult.success, isTrue);
+        expect(altResult.routes.length, greaterThanOrEqualTo(1));
+        expect(altResult.comparisons.length, equals(altResult.routes.length));
+
+        final altJson = altResult.toJson();
+        expect(altJson['success'], isTrue);
+        expect(altJson['routes'], isA<List>());
+        expect(altJson['comparisons'], isA<List>());
+        expect(altJson['routeStatus'], equals('success'));
+
+        final deserializedAlt = AlternativeRoutesResult.fromJson(altJson);
+        expect(deserializedAlt.success, isTrue);
+        expect(deserializedAlt.routes.length, equals(altResult.routes.length));
+        expect(
+          deserializedAlt.comparisons.length,
+          equals(altResult.comparisons.length),
+        );
+        expect(deserializedAlt.routeStatus, equals(RouteStatus.success));
+        expect(
+          deserializedAlt.comparisons.first.distanceDeltaFromPrimary,
+          equals(0.0),
+        );
+
+        // (g) AlternativeRoutesResult failure round-trip (invalid maxRoutes)
+        final badAltResult = await service.computeAlternativeRoutes(
+          graph,
+          multiReq,
+          maxRoutes: 0,
+        );
+        expect(badAltResult.success, isFalse);
+        expect(badAltResult.routeStatus, equals(RouteStatus.invalidRequest));
+
+        final badAltJson = badAltResult.toJson();
+        expect(badAltJson['success'], isFalse);
+        expect(badAltJson['routeStatus'], equals('invalid_request'));
+
+        final deserializedBadAlt = AlternativeRoutesResult.fromJson(badAltJson);
+        expect(deserializedBadAlt.success, isFalse);
+        expect(
+          deserializedBadAlt.routeStatus,
+          equals(RouteStatus.invalidRequest),
+        );
+        expect(deserializedBadAlt.message, contains('maxRoutes'));
+
+        // (h) Emergency request model round-trip and dynamic exit routing via computeRoute
+        final floor1Graph = loadVitFloor1Graph();
+        final emergencyReq = const NavigationRequestModel(
+          buildingId: 'vit-ce',
+          startNodeId: 'reception',
+          destinationNodeId: 'placeholder_exit',
+          preferences: NavigationPreferencesModel(
+            emergencyMode: true,
+            avoidBlockedEdges: true,
+          ),
+        );
+
+        final emergencyReqJson = emergencyReq.toJson();
+        expect(emergencyReqJson['buildingId'], equals('vit-ce'));
+        expect(emergencyReqJson['startNodeId'], equals('reception'));
+        expect(
+          emergencyReqJson['destinationNodeId'],
+          equals('placeholder_exit'),
+        );
+        expect(emergencyReqJson['preferences']['emergencyMode'], isTrue);
+
+        final deserializedEmergencyReq = NavigationRequestModel.fromJson(
+          emergencyReqJson,
+        );
+        expect(deserializedEmergencyReq.buildingId, equals('vit-ce'));
+        expect(deserializedEmergencyReq.startNodeId, equals('reception'));
+        expect(
+          deserializedEmergencyReq.destinationNodeId,
+          equals('placeholder_exit'),
+        );
+        expect(deserializedEmergencyReq.preferences.emergencyMode, isTrue);
+
+        // computeRoute ignores placeholder_exit and discovers exit-a
+        final emergencyResp = await service.computeRoute(
+          floor1Graph,
+          deserializedEmergencyReq,
+        );
+        expect(emergencyResp.success, isTrue);
+        expect(emergencyResp.routeStatus, equals(RouteStatus.success));
+        expect(emergencyResp.pathNodeIds.first, equals('reception'));
+        expect(emergencyResp.pathNodeIds.last, equals('exit-a'));
+        expect(emergencyResp.totalDistance, greaterThan(0.0));
+
+        final emergencyRespJson = emergencyResp.toJson();
+        final deserializedEmergencyResp = NavigationResponseModel.fromJson(
+          emergencyRespJson,
+        );
+        expect(deserializedEmergencyResp.success, isTrue);
+        expect(deserializedEmergencyResp.pathNodeIds.last, equals('exit-a'));
+
+        // (i) In emergencyMode, destinationNodeId is bypassed by the engine,
+        // but startNodeId MUST be a real, existing node in the graph.
+        // An empty or non-existent startNodeId is rejected with startNodeNotFound.
+        final emptyStartEmergencyReq = const NavigationRequestModel(
+          buildingId: 'vit-ce',
+          startNodeId: '',
+          destinationNodeId: 'emergency_exit',
+          preferences: NavigationPreferencesModel(emergencyMode: true),
+        );
+        final emptyStartResp = await service.computeRoute(
+          floor1Graph,
+          emptyStartEmergencyReq,
+        );
+        expect(emptyStartResp.success, isFalse);
+        expect(
+          emptyStartResp.routeStatus,
+          equals(RouteStatus.startNodeNotFound),
+        );
+
+        // (j) Exact public behavior when fields are null or absent in JSON:
+        // When startNodeId is omitted or null in JSON, NavigationRequestModel.fromJson throws TypeError
+        expect(
+          () => NavigationRequestModel.fromJson({
+            'buildingId': 'vit-ce',
+            'destinationNodeId': 'exit-a',
+            'preferences': {'emergencyMode': true},
+          }),
+          throwsA(isA<TypeError>()),
+        );
+
+        // When destinationNodeId is omitted or null in JSON, NavigationRequestModel.fromJson throws TypeError
+        expect(
+          () => NavigationRequestModel.fromJson({
+            'buildingId': 'vit-ce',
+            'startNodeId': 'reception',
+            'preferences': {'emergencyMode': true},
+          }),
+          throwsA(isA<TypeError>()),
         );
       },
     );
