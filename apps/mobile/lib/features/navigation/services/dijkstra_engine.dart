@@ -1,6 +1,7 @@
 import '../../../core/errors/exceptions.dart';
 import '../../../core/models/edge_model.dart';
 import '../domain/spatial_graph.dart';
+import 'traversal_policy.dart';
 
 /// Result of a Dijkstra shortest-path computation.
 ///
@@ -85,6 +86,7 @@ class DijkstraEngine {
     String startNodeId,
     String destinationNodeId, {
     bool skipBlocked = true,
+    TraversalPolicy? policy,
   }) {
     // Validate that start node exists
     if (!graph.hasNode(startNodeId)) {
@@ -111,6 +113,12 @@ class DijkstraEngine {
         totalDistance: 0.0,
       );
     }
+
+    final activePolicy = policy ??
+        TraversalPolicy(
+          skipBlocked: skipBlocked,
+          destinationNodeId: destinationNodeId,
+        );
 
     // Distance map: best known distance from start to each node
     final dist = <String, double>{};
@@ -151,9 +159,19 @@ class DijkstraEngine {
 
       // Relax outgoing edges
       final outgoing = graph.getOutgoingEdges(currentNodeId);
+      final currentNode = graph.getNode(currentNodeId)!;
       for (final edge in outgoing) {
-        // Skip blocked edges if requested
-        if (skipBlocked && edge.blocked) continue;
+        final neighborNode = graph.getNode(edge.endNodeId);
+        if (neighborNode == null) continue;
+
+        // Apply shared traversal policy (blocked, accessibility, stair avoidance)
+        if (!activePolicy.canTraverse(
+          edge: edge,
+          fromNode: currentNode,
+          toNode: neighborNode,
+        )) {
+          continue;
+        }
 
         final neighborId = edge.endNodeId;
 
